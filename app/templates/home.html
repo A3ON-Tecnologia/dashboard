@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Generator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        powerbi: {
+                            primary: '#0078D4',
+                            secondary: '#005A9E',
+                            accent: '#FFB900',
+                            background: '#FFFFFF',
+                            card: '#F5F5F5'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .dashboard-card {
+            backdrop-filter: blur(16px) saturate(180%);
+            background-color: rgba(255, 255, 255, 0.75);
+            border-radius: 12px;
+            border: 1px solid rgba(209, 213, 219, 0.3);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        
+        .chart-container {
+            position: relative;
+            margin: auto;
+            height: 300px;
+            width: 100%;
+        }
+
+        .gradient-overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 100%;
+            background: linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.9) 100%);
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body class="{{ theme.bg }} {{ theme.text }} min-h-screen transition-colors duration-300">
+    <nav class="{{ theme.navbar }} border-b transition-colors duration-300">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center">
+                    <span class="{{ theme.accent }} text-xl font-bold">Dashboard Generator</span>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div class="relative group">
+                        <button class="{{ theme.btn }} px-4 py-2 rounded-lg text-white">
+                            Temas
+                        </button>
+                        <div class="absolute right-0 w-48 mt-2 py-2 {{ theme.modal }} rounded-lg shadow-xl hidden group-hover:block z-50">
+                            <a href="#" onclick="changeTheme('dark')" class="block px-4 py-2 text-sm hover:{{ theme.accent }}">Dark</a>
+                            <a href="#" onclick="changeTheme('light')" class="block px-4 py-2 text-sm hover:{{ theme.accent }}">Light</a>
+                            <a href="#" onclick="changeTheme('neon')" class="block px-4 py-2 text-sm hover:{{ theme.accent }}">Neon</a>
+                            <a href="#" onclick="changeTheme('futurist')" class="block px-4 py-2 text-sm hover:{{ theme.accent }}">Futurist</a>
+                            <a href="#" onclick="changeTheme('classic')" class="block px-4 py-2 text-sm hover:{{ theme.accent }}">Classic</a>
+                        </div>
+                    </div>
+                    {% if current_user.is_authenticated %}
+                        <span class="{{ theme.accent }}">{{ current_user.nome }}</span>
+                        <button onclick="logout()" class="{{ theme.btn }} px-4 py-2 rounded-lg text-white">Sair</button>
+                    {% else %}
+                        <button onclick="openModal('loginModal')" class="{{ theme.btn }} px-4 py-2 rounded-lg text-white">Login</button>
+                        <button onclick="openModal('registerModal')" class="{{ theme.btn }} px-4 py-2 rounded-lg text-white">Cadastro</button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container mx-auto px-4 py-8">
+        <!-- Hero Section -->
+        <div class="relative overflow-hidden mb-12 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 text-white">
+            <div class="absolute inset-0 bg-black opacity-10"></div>
+            <div class="relative z-10 p-12">
+                <div class="flex flex-col md:flex-row items-center justify-between">
+                    <div class="mb-8 md:mb-0 md:w-1/2">
+                        <h1 class="text-4xl md:text-5xl font-bold mb-4">Dashboard Generator</h1>
+                        <p class="text-xl mb-6 text-gray-100">Transforme seus dados em insights poderosos com visualizações profissionais e interativas</p>
+                        {% if not current_user.is_authenticated %}
+                        <button onclick="openModal('loginModal')" class="bg-white text-blue-600 px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors">
+                            Começar Agora
+                        </button>
+                        {% endif %}
+                    </div>
+                    <div class="md:w-1/2">
+                        <div class="dashboard-card p-4 bg-opacity-90">
+                            <div id="heroChart" class="chart-container"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Features Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
+            <!-- KPI Card 1 -->
+            <div class="dashboard-card p-6">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-800">Crescimento Anual</h3>
+                        <p class="text-3xl font-bold text-blue-600">23.4%</p>
+                    </div>
+                    <div class="text-green-500 bg-green-100 px-2 py-1 rounded-full text-sm">+5.2%</div>
+                </div>
+                <div id="growthChart" class="chart-container h-48"></div>
+            </div>
+
+            <!-- KPI Card 2 -->
+            <div class="dashboard-card p-6">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-800">Performance Mensal</h3>
+                        <p class="text-3xl font-bold text-purple-600">89.7%</p>
+                    </div>
+                    <div class="text-purple-500 bg-purple-100 px-2 py-1 rounded-full text-sm">Meta: 85%</div>
+                </div>
+                <div id="performanceChart" class="chart-container h-48"></div>
+            </div>
+
+            <!-- KPI Card 3 -->
+            <div class="dashboard-card p-6">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-800">Distribuição por Categoria</h3>
+                        <p class="text-3xl font-bold text-indigo-600">4.2M</p>
+                    </div>
+                    <div class="text-indigo-500 bg-indigo-100 px-2 py-1 rounded-full text-sm">12 Categorias</div>
+                </div>
+                <div id="distributionChart" class="chart-container h-48"></div>
+            </div>
+        </div>
+
+        <!-- Features Section -->
+        <div class="mb-12">
+            <h2 class="text-3xl font-bold mb-8 text-center">Recursos Principais</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div class="dashboard-card p-6 text-center">
+                    <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-blue-100 flex items-center justify-center">
+                        <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-2">Análise Comparativa</h3>
+                    <p class="text-gray-600">Compare períodos diferentes com visualizações intuitivas e detalhadas</p>
+                </div>
+
+                <div class="dashboard-card p-6 text-center">
+                    <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-purple-100 flex items-center justify-center">
+                        <svg class="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-2">Análise Preditiva</h3>
+                    <p class="text-gray-600">Projeções e tendências baseadas em dados históricos</p>
+                </div>
+
+                <div class="dashboard-card p-6 text-center">
+                    <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-indigo-100 flex items-center justify-center">
+                        <svg class="w-8 h-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-2">Relatórios Automáticos</h3>
+                    <p class="text-gray-600">Geração e exportação automática de relatórios personalizados</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Demo Dashboard -->
+        <div class="dashboard-card p-8 mb-12">
+            <h2 class="text-3xl font-bold mb-6">Dashboard Demonstrativo</h2>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div>
+                    <div class="mb-4">
+                        <h4 class="text-lg font-semibold mb-2">Evolução Patrimonial</h4>
+                        <div id="assetsChart" class="chart-container"></div>
+                    </div>
+                </div>
+                <div>
+                    <div class="mb-4">
+                        <h4 class="text-lg font-semibold mb-2">Distribuição de Receitas</h4>
+                        <div id="revenueChart" class="chart-container"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    {% if not current_user.is_authenticated %}
+    <!-- Login Modal -->
+    <div id="loginModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="{{ theme.modal }} rounded-lg p-8 max-w-md w-full">
+                <h2 class="text-2xl font-bold mb-6">Login</h2>
+                <form id="loginForm" class="space-y-4">
+                    <div>
+                        <label class="block mb-2">Email</label>
+                        <input type="email" name="email" required class="{{ theme.input }} w-full px-4 py-2 rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block mb-2">Senha</label>
+                        <input type="password" name="password" required class="{{ theme.input }} w-full px-4 py-2 rounded-lg">
+                    </div>
+                    <div class="text-red-500 hidden" id="loginError"></div>
+                    <button type="submit" class="{{ theme.btn }} w-full py-2 rounded-lg text-white">Entrar</button>
+                </form>
+                <button onclick="closeModal('loginModal')" class="mt-4 text-sm {{ theme.accent }}">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Register Modal -->
+    <div id="registerModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="{{ theme.modal }} rounded-lg p-8 max-w-md w-full">
+                <h2 class="text-2xl font-bold mb-6">Cadastro</h2>
+                <form id="registerForm" class="space-y-4">
+                    <div>
+                        <label class="block mb-2">Nome</label>
+                        <input type="text" name="nome" required class="{{ theme.input }} w-full px-4 py-2 rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block mb-2">Email</label>
+                        <input type="email" name="email" required class="{{ theme.input }} w-full px-4 py-2 rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block mb-2">Senha</label>
+                        <input type="password" name="password" required class="{{ theme.input }} w-full px-4 py-2 rounded-lg">
+                    </div>
+                    <div class="text-red-500 hidden" id="registerError"></div>
+                    <button type="submit" class="{{ theme.btn }} w-full py-2 rounded-lg text-white">Cadastrar</button>
+                </form>
+                <button onclick="closeModal('registerModal')" class="mt-4 text-sm {{ theme.accent }}">Fechar</button>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <script>
+        // Inicialização dos gráficos
+        document.addEventListener('DOMContentLoaded', function() {
+            // Hero Chart
+            const heroChartOptions = {
+                series: [{
+                    name: 'Crescimento',
+                    data: [30, 40, 35, 50, 49, 60, 70, 91, 125]
+                }],
+                chart: {
+                    type: 'area',
+                    height: 350,
+                    toolbar: {
+                        show: false
+                    },
+                    animations: {
+                        enabled: true,
+                        easing: 'easeinout',
+                        speed: 800,
+                        animateGradually: {
+                            enabled: true,
+                            delay: 150
+                        },
+                        dynamicAnimation: {
+                            enabled: true,
+                            speed: 350
+                        }
+                    }
+                },
+                colors: ['#fff'],
+                fill: {
+                    type: 'gradient',
+                    gradient: {
+                        shadeIntensity: 1,
+                        opacityFrom: 0.7,
+                        opacityTo: 0.9,
+                        stops: [0, 90, 100]
+                    }
+                },
+                stroke: {
+                    curve: 'smooth',
+                    width: 3
+                },
+                xaxis: {
+                    categories: ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set'],
+                    labels: {
+                        style: {
+                            colors: '#fff'
+                        }
+                    }
+                },
+                yaxis: {
+                    labels: {
+                        style: {
+                            colors: '#fff'
+                        }
+                    }
+                },
+                tooltip: {
+                    theme: 'dark'
+                }
+            };
+            const heroChart = new ApexCharts(document.querySelector("#heroChart"), heroChartOptions);
+            heroChart.render();
+
+            // Growth Chart
+            const growthChartOptions = {
+                series: [{
+                    name: 'Crescimento',
+                    data: [10, 15, 12, 20, 18, 25, 22]
+                }],
+                chart: {
+                    type: 'line',
+                    height: 200,
+                    toolbar: {
+                        show: false
+                    },
+                    sparkline: {
+                        enabled: true
+                    }
+                },
+                colors: ['#2563eb'],
+                stroke: {
+                    curve: 'smooth',
+                    width: 3
+                },
+                tooltip: {
+                    fixed: {
+                        enabled: false
+                    },
+                    x: {
+                        show: false
+                    },
+                    marker: {
+                        show: false
+                    }
+                }
+            };
+            const growthChart = new ApexCharts(document.querySelector("#growthChart"), growthChartOptions);
+            growthChart.render();
+
+            // Performance Chart
+            const performanceChartOptions = {
+                series: [89.7],
+                chart: {
+                    type: 'radialBar',
+                    height: 200,
+                    sparkline: {
+                        enabled: true
+                    }
+                },
+                colors: ['#9333ea'],
+                plotOptions: {
+                    radialBar: {
+                        startAngle: -90,
+                        endAngle: 90,
+                        track: {
+                            background: "#e0e0e0",
+                            strokeWidth: '97%',
+                            margin: 5
+                        },
+                        hollow: {
+                            size: '60%'
+                        },
+                        dataLabels: {
+                            name: {
+                                show: false
+                            },
+                            value: {
+                                offsetY: -2,
+                                fontSize: '22px'
+                            }
+                        }
+                    }
+                }
+            };
+            const performanceChart = new ApexCharts(document.querySelector("#performanceChart"), performanceChartOptions);
+            performanceChart.render();
+
+            // Distribution Chart
+            const distributionChartOptions = {
+                series: [44, 55, 67, 83],
+                chart: {
+                    type: 'donut',
+                    height: 200,
+                    sparkline: {
+                        enabled: true
+                    }
+                },
+                colors: ['#4f46e5', '#6366f1', '#818cf8', '#a5b4fc'],
+                labels: ['Categoria A', 'Categoria B', 'Categoria C', 'Categoria D'],
+                plotOptions: {
+                    pie: {
+                        donut: {
+                            size: '65%'
+                        }
+                    }
+                }
+            };
+            const distributionChart = new ApexCharts(document.querySelector("#distributionChart"), distributionChartOptions);
+            distributionChart.render();
+
+            // Assets Chart
+            const assetsChartOptions = {
+                series: [{
+                    name: 'Ativos',
+                    data: [2.3, 3.1, 4.0, 5.1, 6.2, 7.5, 8.3]
+                }],
+                chart: {
+                    height: 350,
+                    type: 'area',
+                    toolbar: {
+                        show: false
+                    }
+                },
+                colors: ['#2563eb'],
+                fill: {
+                    type: 'gradient',
+                    gradient: {
+                        shadeIntensity: 1,
+                        opacityFrom: 0.7,
+                        opacityTo: 0.9,
+                        stops: [0, 90, 100]
+                    }
+                },
+                xaxis: {
+                    categories: ['2019', '2020', '2021', '2022', '2023', '2024', '2025'],
+                },
+                yaxis: {
+                    title: {
+                        text: 'Milhões (R$)'
+                    }
+                },
+                stroke: {
+                    curve: 'smooth'
+                }
+            };
+            const assetsChart = new ApexCharts(document.querySelector("#assetsChart"), assetsChartOptions);
+            assetsChart.render();
+
+            // Revenue Chart
+            const revenueChartOptions = {
+                series: [{
+                    data: [400, 430, 448, 470, 540, 580, 690]
+                }],
+                chart: {
+                    type: 'bar',
+                    height: 350,
+                    toolbar: {
+                        show: false
+                    }
+                },
+                colors: ['#6366f1'],
+                plotOptions: {
+                    bar: {
+                        borderRadius: 4,
+                        columnWidth: '70%',
+                    }
+                },
+                dataLabels: {
+                    enabled: false
+                },
+                xaxis: {
+                    categories: ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul'],
+                }
+            };
+            const revenueChart = new ApexCharts(document.querySelector("#revenueChart"), revenueChartOptions);
+            revenueChart.render();
+        });
+
+        function changeTheme(theme) {
+            fetch(`/theme/${theme}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            }).then(response => response.json())
+              .then(data => {
+                  if (data.message) {
+                      window.location.reload();
+                  }
+              });
+        }
+
+        function openModal(modalId) {
+            document.getElementById(modalId).classList.remove('hidden');
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.add('hidden');
+        }
+
+        function logout() {
+            fetch('/logout')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.message) {
+                        window.location.href = '/';
+                    }
+                });
+        }
+
+        document.getElementById('loginForm')?.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            fetch('/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(Object.fromEntries(formData))
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    document.getElementById('loginError').textContent = data.error;
+                    document.getElementById('loginError').classList.remove('hidden');
+                } else {
+                    window.location.href = '/dashboard';
+                }
+            });
+        });
+
+        document.getElementById('registerForm')?.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            fetch('/register', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(Object.fromEntries(formData))
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    document.getElementById('registerError').textContent = data.error;
+                    document.getElementById('registerError').classList.remove('hidden');
+                } else {
+                    window.location.href = '/dashboard';
+                }
+            });
+        });
+    </script>
+</body>
+</html>
+            </form>
+            <button onclick="closeModal('loginModal')" class="mt-4 text-sm {{ theme.accent }}">Fechar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Register Modal -->
+<div id="registerModal" class="fixed inset-0 bg-black bg-opacity-50 hidden">
+    <div class="flex items-center justify-center min-h-screen p-4">
+        <div class="{{ theme.modal }} rounded-lg p-8 max-w-md w-full">
+            <h2 class="text-2xl font-bold mb-6">Cadastro</h2>
+            <form id="registerForm" class="space-y-4">
+                <div>
+                    <label class="block mb-2">Nome</label>
+                    <input type="text" name="nome" required class="{{ theme.input }} w-full px-4 py-2 rounded-lg">
+                </div>
+                <div>
+                    <label class="block mb-2">Email</label>
+                    <input type="email" name="email" required class="{{ theme.input }} w-full px-4 py-2 rounded-lg">
+                </div>
+                <div>
+                    <label class="block mb-2">Senha</label>
+                    <input type="password" name="password" required class="{{ theme.input }} w-full px-4 py-2 rounded-lg">
+                </div>
+                <div class="text-red-500 hidden" id="registerError"></div>
+                <button type="submit" class="{{ theme.btn }} w-full py-2 rounded-lg text-white">Cadastrar</button>
+            </form>
+            <button onclick="closeModal('registerModal')" class="mt-4 text-sm {{ theme.accent }}">Fechar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    function openModal(modalId) {
+        document.getElementById(modalId).classList.remove('hidden');
+    }
+
+    function closeModal(modalId) {
+        document.getElementById(modalId).classList.add('hidden');
+    }
+
+    document.getElementById('loginForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const formData = new FormData(this);
+        fetch('/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(Object.fromEntries(formData))
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                document.getElementById('loginError').textContent = data.error;
+                document.getElementById('loginError').classList.remove('hidden');
+            } else {
+                window.location.href = '/dashboard';
+            }
+        });
+    });
+
+    document.getElementById('registerForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const formData = new FormData(this);
+        fetch('/register', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(Object.fromEntries(formData))
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                document.getElementById('registerError').textContent = data.error;
+                document.getElementById('registerError').classList.remove('hidden');
+            } else {
+                window.location.href = '/dashboard';
+            }
+        });
+    });
+</script>

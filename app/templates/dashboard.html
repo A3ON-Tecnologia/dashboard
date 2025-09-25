@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-8">
+    <div class="{{ theme.modal }} rounded-lg p-6">
+        <h1 class="text-2xl font-bold mb-4">Bem-vindo, {{ current_user.nome }}!</h1>
+        <p>Este é o seu painel principal. Em breve, aqui você terá acesso a diversos dashboards e análises.</p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Placeholder cards for future features -->
+        <div class="{{ theme.modal }} rounded-lg p-6">
+            <h3 class="text-xl font-bold mb-2 {{ theme.accent }}">Análise de Dados</h3>
+            <p>Visualize suas análises de dados de forma interativa.</p>
+        </div>
+        
+        <div class="{{ theme.modal }} rounded-lg p-6">
+            <h3 class="text-xl font-bold mb-2 {{ theme.accent }}">Relatórios</h3>
+            <p>Gere relatórios personalizados com suas informações.</p>
+        </div>
+        
+        <div class="{{ theme.modal }} rounded-lg p-6">
+            <h3 class="text-xl font-bold mb-2 {{ theme.accent }}">Configurações</h3>
+            <p>Personalize sua experiência e preferências do sistema.</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
