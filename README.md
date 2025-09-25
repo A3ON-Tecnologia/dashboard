@@ -48,7 +48,7 @@ Sistema moderno de dashboard com autenticação e suporte a múltiplos temas vis
    FLASK_APP=run.py
    FLASK_ENV=development
    SECRET_KEY=sua_chave_secreta
-   DATABASE_URL=mysql://root:@localhost/cadastro_empresas
+   DATABASE_URL=mysql://root:@localhost/dashboards
    ```
 
 ## Executando o Projeto

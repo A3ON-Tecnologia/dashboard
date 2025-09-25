@@ -1,28 +1,294 @@
-{% extends "base.html" %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        }
+    </style>
+</head>
+<body class="{{ theme.bg }} {{ theme.text }} transition-colors duration-300">
+    <div class="flex min-h-screen">
+        <!-- Sidebar -->
+        <nav class="{{ theme.navbar }} w-20 flex-shrink-0 p-4 flex flex-col justify-between items-center">
+            <!-- Top Icons -->
+            <div class="flex flex-col items-center space-y-4">
+                <button onclick="openModal('userProfileModal')" class="p-2 rounded-full hover:{{ theme.accent }} hover:bg-opacity-20 transition-colors duration-200" title="Perfil do Usuário">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 {{ theme.text }}">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                    </svg>
+                </button>
+                <div class="relative">
+                    <button onclick="toggleThemeMenu(event)" class="p-2 rounded-full hover:{{ theme.accent }} hover:bg-opacity-20 transition-colors duration-200" title="Alterar Tema">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 {{ theme.text }}">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.4 2.245 4.5 4.5 0 008.4-2.245c0-.399-.078-.78-.22-1.128zm0 0a15.998 15.998 0 003.388-1.62m-5.043-.025a15.994 15.994 0 011.622-3.395m3.42 3.42a15.995 15.995 0 004.764-4.648l3.876-5.814a1.151 1.151 0 00-1.597-1.597L14.146 6.32a15.996 15.996 0 00-4.649 4.763m3.42 3.42a6.776 6.776 0 00-3.42-3.42" />
+                        </svg>
+                    </button>
+                    <!-- Portal container para o menu -->
+                    <div id="menuPortal"></div>
+                </div>
+            </div>
 
-{% block content %}
-<div class="space-y-8">
-    <div class="{{ theme.modal }} rounded-lg p-6">
-        <h1 class="text-2xl font-bold mb-4">Bem-vindo, {{ current_user.nome }}!</h1>
-        <p>Este é o seu painel principal. Em breve, aqui você terá acesso a diversos dashboards e análises.</p>
+            <!-- Bottom Icons -->
+            <div class="flex flex-col items-center space-y-4">
+                <button onclick="logout()" class="{{ theme.btn }} w-full p-2 rounded-lg flex justify-center" title="Sair">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-white">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+                    </svg>
+                </button>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="flex-grow p-8 overflow-auto">
+        <div class="space-y-8">
+            <div class="{{ theme.modal }} rounded-lg p-6">
+                <h1 class="text-2xl font-bold mb-4">Bem-vindo, {{ current_user.nome }}!</h1>
+                <p>Este é o seu painel principal. Em breve, aqui você terá acesso a diversos dashboards e análises.</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Placeholder cards for future features -->
+                <div class="{{ theme.modal }} rounded-lg p-6">
+                    <h3 class="text-xl font-bold mb-2 {{ theme.accent }}">Análise de Dados</h3>
+                    <p>Visualize suas análises de dados de forma interativa.</p>
+                </div>
+                
+                <div class="{{ theme.modal }} rounded-lg p-6">
+                    <h3 class="text-xl font-bold mb-2 {{ theme.accent }}">Relatórios</h3>
+                    <p>Gere relatórios personalizados com suas informações.</p>
+                </div>
+                
+                <div class="{{ theme.modal }} rounded-lg p-6">
+                    <h3 class="text-xl font-bold mb-2 {{ theme.accent }}">Configurações</h3>
+                    <p>Personalize sua experiência e preferências do sistema.</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- User Profile Modal -->
+    <div id="userProfileModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="{{ theme.modal }} rounded-lg p-8 max-w-md w-full relative">
+                <button onclick="closeModal('userProfileModal')" class="absolute top-4 right-4 {{ theme.accent }} hover:opacity-75 transition-opacity">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+                <h2 class="text-2xl font-bold mb-6">Meu Perfil</h2>
+                <form id="userProfileForm" class="space-y-4">
+                    <div>
+                        <label class="block mb-2">Nome</label>
+                        <input type="text" name="nome" value="{{ current_user.nome }}" required class="{{ theme.input }} w-full px-4 py-2 rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block mb-2">Email</label>
+                        <input type="email" name="email" value="{{ current_user.email }}" required class="{{ theme.input }} w-full px-4 py-2 rounded-lg">
+                    </div>
+                    <div class="relative">
+                        <label class="block mb-2">Nova Senha (deixe em branco para não alterar)</label>
+                        <input type="password" id="passwordInput" name="password" class="{{ theme.input }} w-full px-4 py-2 rounded-lg">
+                        <button type="button" id="togglePassword" class="absolute inset-y-0 right-0 px-3 flex items-center text-sm leading-5 top-7">
+                            <svg id="eyeIconOpen" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            <svg id="eyeIconClosed" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 hidden">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.243 4.243l-4.243-4.243" />
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="text-green-500 hidden" id="profileSuccess"></div>
+                    <div class="text-red-500 hidden" id="profileError"></div>
+                    <button type="submit" class="{{ theme.btn }} w-full py-2 rounded-lg text-white">Salvar Alterações</button>
+                </form>
+            </div>
+        </div>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <!-- Placeholder cards for future features -->
-        <div class="{{ theme.modal }} rounded-lg p-6">
-            <h3 class="text-xl font-bold mb-2 {{ theme.accent }}">Análise de Dados</h3>
-            <p>Visualize suas análises de dados de forma interativa.</p>
-        </div>
-        
-        <div class="{{ theme.modal }} rounded-lg p-6">
-            <h3 class="text-xl font-bold mb-2 {{ theme.accent }}">Relatórios</h3>
-            <p>Gere relatórios personalizados com suas informações.</p>
-        </div>
-        
-        <div class="{{ theme.modal }} rounded-lg p-6">
-            <h3 class="text-xl font-bold mb-2 {{ theme.accent }}">Configurações</h3>
-            <p>Personalize sua experiência e preferências do sistema.</p>
-        </div>
-    </div>
-</div>
-{% endblock %}
+    <script>
+        // --- Funções do Menu de Temas ---
+        function createThemeMenu() {
+            const menuPortal = document.getElementById('menuPortal');
+            if (!menuPortal) return;
+
+            const menuContainer = document.createElement('div');
+            menuContainer.id = 'themeMenuContainer';
+            menuContainer.style.position = 'fixed';
+            menuContainer.style.top = '0';
+            menuContainer.style.left = '0';
+            menuContainer.style.width = '100vw';
+            menuContainer.style.height = '100vh';
+            menuContainer.style.pointerEvents = 'none';
+            menuContainer.style.zIndex = '99999';
+            document.body.appendChild(menuContainer);
+
+            const menu = document.createElement('div');
+            menu.id = 'themeMenu';
+            menu.className = 'hidden {{ theme.modal }} rounded-lg shadow-xl py-1 w-56';
+            menu.style.position = 'absolute';
+            menu.style.pointerEvents = 'auto';
+            
+            const themes = [
+                { name: 'Escuro', value: 'dark', preview: 'bg-gradient-to-r from-gray-900 via-gray-800 to-gray-700' },
+                { name: 'Claro', value: 'light', preview: 'bg-gradient-to-r from-blue-500 via-white to-gray-100' },
+                { name: 'Neon', value: 'neon', preview: 'bg-gradient-to-r from-purple-600 via-green-400 to-black' },
+                { name: 'Futurista', value: 'futurist', preview: 'bg-gradient-to-r from-blue-600 via-cyan-400 to-purple-600' }
+            ];
+
+            themes.forEach(theme => {
+                const link = document.createElement('a');
+                link.href = '#';
+                link.className = 'block px-4 py-2 text-sm hover:{{ theme.accent }} flex items-center justify-between';
+                
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'flex items-center gap-3';
+                
+                const nameSpan = document.createElement('span');
+                nameSpan.textContent = theme.name;
+                
+                const previewDiv = document.createElement('div');
+                previewDiv.className = `w-5 h-5 rounded-full ${theme.preview} border border-gray-400/20`;
+                
+                contentDiv.appendChild(previewDiv);
+                contentDiv.appendChild(nameSpan);
+                link.appendChild(contentDiv);
+                
+                link.onclick = (e) => {
+                    e.preventDefault();
+                    changeTheme(theme.value);
+                    toggleThemeMenu(e);
+                };
+                menu.appendChild(link);
+            });
+
+            menuContainer.appendChild(menu);
+        }
+
+        function toggleThemeMenu(event) {
+            const menu = document.getElementById('themeMenu');
+            const button = event.currentTarget;
+            const buttonRect = button.getBoundingClientRect();
+            
+            if (menu.classList.contains('hidden')) {
+                menu.style.top = buttonRect.top + 'px';
+                menu.style.left = (buttonRect.right + 12) + 'px'; // Posiciona à direita do botão
+                menu.classList.remove('hidden');
+            } else {
+                menu.classList.add('hidden');
+            }
+        }
+
+        document.addEventListener('click', function(event) {
+            const menu = document.getElementById('themeMenu');
+            const isThemeButton = event.target.closest('button[title="Alterar Tema"]');
+            
+            if (!menu || menu.classList.contains('hidden')) return;
+            
+            if (!isThemeButton && !menu.contains(event.target)) {
+                menu.classList.add('hidden');
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', function() {
+            createThemeMenu();
+
+            // --- Lógica do Modal de Perfil ---
+            const togglePassword = document.getElementById('togglePassword');
+            const passwordInput = document.getElementById('passwordInput');
+            const eyeIconOpen = document.getElementById('eyeIconOpen');
+            const eyeIconClosed = document.getElementById('eyeIconClosed');
+
+            togglePassword.addEventListener('click', function () {
+                const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+                passwordInput.setAttribute('type', type);
+                eyeIconOpen.classList.toggle('hidden');
+                eyeIconClosed.classList.toggle('hidden');
+            });
+
+            const userProfileForm = document.getElementById('userProfileForm');
+            userProfileForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const formData = new FormData(this);
+                const data = Object.fromEntries(formData.entries());
+
+                // Não envia a senha se o campo estiver vazio
+                if (data.password === '') {
+                    delete data.password;
+                }
+
+                fetch('/update_profile', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                })
+                .then(response => response.json())
+                .then(result => {
+                    const successDiv = document.getElementById('profileSuccess');
+                    const errorDiv = document.getElementById('profileError');
+
+                    if (result.error) {
+                        errorDiv.textContent = result.error;
+                        errorDiv.classList.remove('hidden');
+                        successDiv.classList.add('hidden');
+                    } else {
+                        successDiv.textContent = result.message;
+                        successDiv.classList.remove('hidden');
+                        errorDiv.classList.add('hidden');
+                        // Opcional: recarregar a página para ver o nome atualizado na navbar
+                        setTimeout(() => window.location.reload(), 1500);
+                    }
+                });
+            });
+        });
+
+        function openModal(modalId) {
+            document.getElementById(modalId).classList.remove('hidden');
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.add('hidden');
+        }
+
+        function changeTheme(theme) {
+            fetch(`/theme/${theme}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            }).then(response => {
+                if (response.ok) window.location.reload();
+            });
+        }
+
+        // --- Função de Logout ---
+        function logout() {
+            fetch('/logout')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.message) {
+                        window.location.href = '/';
+                    }
+                });
+        }
+    </script>
+</body>
+</html>
