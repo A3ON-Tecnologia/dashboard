@@ -1,6 +1,7 @@
 import os
 from flask import Flask
 from flask_login import LoginManager
+from flask_migrate import Migrate
 from config import Config
 from app.models.user import db, User
 from app.services.auth_service import init_bcrypt
@@ -28,6 +29,7 @@ def create_app():
     
     # Initialize extensions
     db.init_app(app)
+    Migrate(app, db)
     login_manager.init_app(app)
     init_bcrypt(app)
     
@@ -42,7 +44,5 @@ def create_app():
         app.register_blueprint(auth_bp)
         app.register_blueprint(main_bp)
         
-        # Create database tables
-        db.create_all()
         
         return app

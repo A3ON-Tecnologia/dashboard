@@ -32,14 +32,14 @@
         <nav class="{{ theme.navbar }} w-20 flex-shrink-0 p-4 flex flex-col justify-between items-center">
             <!-- Top Icons -->
             <div class="flex flex-col items-center space-y-4">
-                <button onclick="openModal('userProfileModal')" class="p-2 rounded-full hover:{{ theme.accent }} hover:bg-opacity-20 transition-colors duration-200" title="Perfil do Usuário">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 {{ theme.text }}">
+                <button onclick="openModal('userProfileModal')" class="{{ theme.btn }} p-2 rounded-full transition-colors duration-200" title="Perfil do Usuário">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-white">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
                     </svg>
                 </button>
                 <div class="relative">
-                    <button onclick="toggleThemeMenu(event)" class="p-2 rounded-full hover:{{ theme.accent }} hover:bg-opacity-20 transition-colors duration-200" title="Alterar Tema">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 {{ theme.text }}">
+                    <button onclick="toggleThemeMenu(event)" class="{{ theme.btn }} p-2 rounded-full transition-colors duration-200" title="Alterar Tema">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-white">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.4 2.245 4.5 4.5 0 008.4-2.245c0-.399-.078-.78-.22-1.128zm0 0a15.998 15.998 0 003.388-1.62m-5.043-.025a15.994 15.994 0 011.622-3.395m3.42 3.42a15.995 15.995 0 004.764-4.648l3.876-5.814a1.151 1.151 0 00-1.597-1.597L14.146 6.32a15.996 15.996 0 00-4.649 4.763m3.42 3.42a6.776 6.776 0 00-3.42-3.42" />
                         </svg>
                     </button>
@@ -127,7 +127,36 @@
     </div>
 
     <script>
-        // --- Funções do Menu de Temas ---
+        // --- Definições de Funções ---
+        function openModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) modal.classList.remove('hidden');
+        }
+
+        function closeModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) modal.classList.add('hidden');
+        }
+
+        function logout() {
+            fetch('/logout')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.message) {
+                        window.location.href = '/';
+                    }
+                });
+        }
+
+        function changeTheme(theme) {
+            fetch(`/theme/${theme}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            }).then(response => {
+                if (response.ok) window.location.reload();
+            });
+        }
+
         function createThemeMenu() {
             const menuPortal = document.getElementById('menuPortal');
             if (!menuPortal) return;
@@ -199,96 +228,81 @@
             }
         }
 
-        document.addEventListener('click', function(event) {
-            const menu = document.getElementById('themeMenu');
-            const isThemeButton = event.target.closest('button[title="Alterar Tema"]');
-            
-            if (!menu || menu.classList.contains('hidden')) return;
-            
-            if (!isThemeButton && !menu.contains(event.target)) {
-                menu.classList.add('hidden');
-            }
-        });
-
-        document.addEventListener('DOMContentLoaded', function() {
-            createThemeMenu();
-
-            // --- Lógica do Modal de Perfil ---
-            const togglePassword = document.getElementById('togglePassword');
+        function togglePassword() {
             const passwordInput = document.getElementById('passwordInput');
             const eyeIconOpen = document.getElementById('eyeIconOpen');
             const eyeIconClosed = document.getElementById('eyeIconClosed');
 
-            togglePassword.addEventListener('click', function () {
-                const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
-                passwordInput.setAttribute('type', type);
+            const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+            passwordInput.setAttribute('type', type);
+            if (eyeIconOpen && eyeIconClosed) {
                 eyeIconOpen.classList.toggle('hidden');
                 eyeIconClosed.classList.toggle('hidden');
-            });
+            }
+        }
 
-            const userProfileForm = document.getElementById('userProfileForm');
-            userProfileForm.addEventListener('submit', function(e) {
-                e.preventDefault();
-                const formData = new FormData(this);
-                const data = Object.fromEntries(formData.entries());
+        function submitUserProfileForm(event) {
+            event.preventDefault();
+            const formData = new FormData(event.target);
+            const data = Object.fromEntries(formData.entries());
 
-                // Não envia a senha se o campo estiver vazio
-                if (data.password === '') {
-                    delete data.password;
-                }
+            if (data.password === '') {
+                delete data.password;
+            }
 
-                fetch('/update_profile', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                })
-                .then(response => response.json())
-                .then(result => {
-                    const successDiv = document.getElementById('profileSuccess');
-                    const errorDiv = document.getElementById('profileError');
+            fetch('/update_profile', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(result => {
+                const successDiv = document.getElementById('profileSuccess');
+                const errorDiv = document.getElementById('profileError');
 
-                    if (result.error) {
+                if (result.error) {
+                    if(errorDiv) {
                         errorDiv.textContent = result.error;
                         errorDiv.classList.remove('hidden');
-                        successDiv.classList.add('hidden');
-                    } else {
+                        if(successDiv) successDiv.classList.add('hidden');
+                    }
+                } else {
+                    if(successDiv) {
                         successDiv.textContent = result.message;
                         successDiv.classList.remove('hidden');
-                        errorDiv.classList.add('hidden');
-                        // Opcional: recarregar a página para ver o nome atualizado na navbar
+                        if(errorDiv) errorDiv.classList.add('hidden');
                         setTimeout(() => window.location.reload(), 1500);
                     }
-                });
+                }
+            });
+        }
+
+        // --- Inicialização e Event Listeners ---
+        document.addEventListener('DOMContentLoaded', function() {
+            createThemeMenu();
+
+            // Lógica do Modal de Perfil
+            const togglePasswordButton = document.getElementById('togglePassword');
+            if (togglePasswordButton) {
+                togglePasswordButton.addEventListener('click', togglePassword);
+            }
+
+            const userProfileForm = document.getElementById('userProfileForm');
+            if (userProfileForm) {
+                userProfileForm.addEventListener('submit', submitUserProfileForm);
+            }
+
+            document.addEventListener('click', function(event) {
+                const menu = document.getElementById('themeMenu');
+                const isThemeButton = event.target.closest('button[title="Alterar Tema"]');
+                
+                if (!menu || menu.classList.contains('hidden')) return;
+                
+                if (!isThemeButton && !menu.contains(event.target)) {
+                    menu.classList.add('hidden');
+                }
             });
         });
-
-        function openModal(modalId) {
-            document.getElementById(modalId).classList.remove('hidden');
-        }
-
-        function closeModal(modalId) {
-            document.getElementById(modalId).classList.add('hidden');
-        }
-
-        function changeTheme(theme) {
-            fetch(`/theme/${theme}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            }).then(response => {
-                if (response.ok) window.location.reload();
-            });
-        }
-
-        // --- Função de Logout ---
-        function logout() {
-            fetch('/logout')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.message) {
-                        window.location.href = '/';
-                    }
-                });
-        }
     </script>
 </body>
 </html>
