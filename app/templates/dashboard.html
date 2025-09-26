@@ -29,74 +29,87 @@
 <body class="{{ theme.bg }} {{ theme.text }} transition-colors duration-300">
     <div class="flex min-h-screen">
         <!-- Sidebar -->
-        <nav class="{{ theme.navbar }} w-20 flex-shrink-0 p-4 flex flex-col justify-between items-center">
-            <!-- Top Icons -->
-            <div class="flex flex-col items-center space-y-4">
-                <a href="/dashboard" class="{{ theme.btn }} p-2 rounded-full transition-colors duration-200" title="Home">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 {% if request.path == '/dashboard' %}{{ theme.accent }}{% else %}text-white{% endif %}">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 7.5l8.25-4.125L20.25 7.5M4.5 19.5h15a.75.75 0 00.75-.75V9.75a.75.75 0 00-.397-.663l-7.5-3.75a.75.75 0 00-.706 0l-7.5 3.75A.75.75 0 003.75 9.75v9a.75.75 0 00.75.75z" />
-                    </svg>
-                </a>
-                <button onclick="openModal('userProfileModal')" class="{{ theme.btn }} p-2 rounded-full transition-colors duration-200" title="Perfil do Usuário">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 {% if request.path.startswith('/admin/users') %}{{ theme.accent }}{% else %}text-white{% endif %}">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-                    </svg>
-                </button>
-                <div class="relative">
-                    <button onclick="toggleThemeMenu(event)" class="{{ theme.btn }} p-2 rounded-full transition-colors duration-200" title="Alterar Tema">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-white">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.4 2.245 4.5 4.5 0 008.4-2.245c0-.399-.078-.78-.22-1.128zm0 0a15.998 15.998 0 003.388-1.62m-5.043-.025a15.994 15.994 0 011.622-3.395m3.42 3.42a15.995 15.995 0 004.764-4.648l3.876-5.814a1.151 1.151 0 00-1.597-1.597L14.146 6.32a15.996 15.996 0 00-4.649 4.763m3.42 3.42a6.776 6.776 0 00-3.42-3.42" />
-                        </svg>
-                    </button>
-                    <!-- Portal container para o menu -->
-                    <div id="menuPortal"></div>
-                </div>
-                {% if current_user.admin %}
-                <a href="/admin/users" class="{{ theme.btn }} p-2 rounded-full transition-colors duration-200" title="Usuários">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-white">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M18 9a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 21a6 6 0 00-12 0" />
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 9a3 3 0 116 0 3 3 0 01-6 0z" />
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 21a6 6 0 00-7.5-5.8" />
-                    </svg>
-                </a>
-                {% endif %}
-            </div>
-
-            <!-- Bottom Icons -->
-            <div class="flex flex-col items-center space-y-4">
-                <button onclick="logout()" class="{{ theme.btn }} w-full p-2 rounded-lg flex justify-center" title="Sair">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-white">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
-                    </svg>
-                </button>
-            </div>
-        </nav>
+        {% include 'partials/sidebar.html' %}
 
         <!-- Main Content -->
         <main class="flex-grow p-8 overflow-auto">
         <div class="space-y-8">
-            <div class="{{ theme.modal }} rounded-lg p-6">
-                <h1 class="text-2xl font-bold mb-4">Bem-vindo, {{ current_user.nome }}!</h1>
-                <p>Este é o seu painel principal. Em breve, aqui você terá acesso a diversos dashboards e análises.</p>
+            <div class="{{ theme.modal }} rounded-lg p-6 flex items-center justify-between">
+                <div>
+                    <h2 class="text-2xl font-semibold {{ theme.text }}">Bem-vindo de volta, {{ current_user.nome }}!</h2>
+                </div>
+            </div>
+            
+            <!-- Header -->
+            <div class="flex justify-between items-center">
+                <div>
+                    <h1 class="text-3xl font-bold {{ theme.text }}">Meus Workflows</h1>
+                    <p class="{{ theme.text }} opacity-75">Gerencie seus workflows de Business Intelligence</p>
+                </div>
+                <button onclick="openCreateWorkflowModal()" class="{{ theme.btn }} px-6 py-3 rounded-lg text-white flex items-center space-x-2 transition-colors duration-200">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                    </svg>
+                    <span>Novo Workflow</span>
+                </button>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <!-- Placeholder cards for future features -->
-                <div class="{{ theme.modal }} rounded-lg p-6">
-                    <h3 class="text-xl font-bold mb-2 {{ theme.accent }}">Análise de Dados</h3>
-                    <p>Visualize suas análises de dados de forma interativa.</p>
-                </div>
-                
-                <div class="{{ theme.modal }} rounded-lg p-6">
-                    <h3 class="text-xl font-bold mb-2 {{ theme.accent }}">Relatórios</h3>
-                    <p>Gere relatórios personalizados com suas informações.</p>
-                </div>
-                
-                <div class="{{ theme.modal }} rounded-lg p-6">
-                    <h3 class="text-xl font-bold mb-2 {{ theme.accent }}">Configurações</h3>
-                    <p>Personalize sua experiência e preferências do sistema.</p>
-                </div>
+            <!-- Workflows Grid -->
+            <div id="workflowsContainer">
+                {% if workflows %}
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {% for workflow in workflows %}
+                        <div class="{{ theme.modal }} rounded-lg p-6 border-l-4 {{ theme.card_border[workflow.tipo] }} transition-all duration-200 hover:shadow-lg">
+                            <div class="flex justify-between items-start mb-4">
+                                <div class="flex-1">
+                                    <h3 class="text-xl font-bold {{ theme.text }} mb-2">{{ workflow.nome }}</h3>
+                                    <p class="{{ theme.text }} opacity-75 text-sm mb-3">{{ workflow.descricao or 'Sem descrição' }}</p>
+                                    <div class="flex items-center space-x-2">
+                                        <span class="px-3 py-1 rounded-full text-xs font-medium {{ theme.badge[workflow.tipo] }}">
+                                            {{ workflow.tipo.title() }}
+                                        </span>
+                                        <span class="{{ theme.text }} opacity-50 text-xs">
+                                            {{ workflow.data_criacao.strftime('%d/%m/%Y') }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Action Buttons -->
+                            <div class="flex space-x-2">
+                                <button onclick="enterWorkflow('{{ workflow.nome }}')" class="flex-1 {{ theme.buttons.primary }} px-4 py-2 rounded-lg text-sm transition-colors duration-200 flex items-center justify-center space-x-1">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                                    </svg>
+                                    <span>Entrar</span>
+                                </button>
+                                <button onclick="editWorkflow('{{ workflow.id }}')" class="{{ theme.buttons.warning }} px-3 py-2 rounded-lg text-sm transition-colors duration-200" title="Editar" data-nome="{{ workflow.nome }}" data-descricao="{{ workflow.descricao }}" data-tipo="{{ workflow.tipo }}">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                                    </svg>
+                                </button>
+                                <button onclick="deleteWorkflow('{{ workflow.id }}')" class="{{ theme.buttons.danger }} px-3 py-2 rounded-lg text-sm transition-colors duration-200" title="Excluir" data-nome="{{ workflow.nome }}">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <!-- Empty State -->
+                    <div class="{{ theme.modal }} rounded-lg p-12 text-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-16 h-16 {{ theme.text }} opacity-50 mx-auto mb-4">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                        </svg>
+                        <h3 class="text-xl font-bold {{ theme.text }} mb-2">Nenhum workflow encontrado</h3>
+                        <p class="{{ theme.text }} opacity-75 mb-6">Crie seu primeiro workflow para começar a analisar seus dados</p>
+                        <button onclick="openCreateWorkflowModal()" class="{{ theme.btn }} px-6 py-3 rounded-lg text-white">
+                            Criar Primeiro Workflow
+                        </button>
+                    </div>
+                {% endif %}
             </div>
         </div>
     </main>
@@ -110,15 +123,16 @@
                         <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                     </svg>
                 </button>
-                <h2 class="text-2xl font-bold mb-6">Meu Perfil</h2>
+                <h2 id="modalTitle" class="text-2xl font-bold mb-6">Meu Perfil</h2>
                 <form id="userProfileForm" class="space-y-4">
+                    <input type="hidden" id="userId" name="userId" value="">
                     <div>
                         <label class="block mb-2">Nome</label>
-                        <input type="text" name="nome" value="{{ current_user.nome }}" required class="{{ theme.input }} w-full px-4 py-2 rounded-lg">
+                        <input type="text" id="nomeInput" name="nome" value="{{ current_user.nome }}" required class="{{ theme.input }} w-full px-4 py-2 rounded-lg">
                     </div>
                     <div>
                         <label class="block mb-2">Email</label>
-                        <input type="email" name="email" value="{{ current_user.email }}" required class="{{ theme.input }} w-full px-4 py-2 rounded-lg">
+                        <input type="email" id="emailInput" name="email" value="{{ current_user.email }}" required class="{{ theme.input }} w-full px-4 py-2 rounded-lg">
                     </div>
                     <div class="relative">
                         <label class="block mb-2">Nova Senha (deixe em branco para não alterar)</label>
@@ -133,24 +147,134 @@
                             </svg>
                         </button>
                     </div>
-                    <div class="text-green-500 hidden" id="profileSuccess"></div>
-                    <div class="text-red-500 hidden" id="profileError"></div>
+                    <div class="relative">
+                        <label class="block mb-2">Confirmar Nova Senha</label>
+                        <input type="password" id="confirmPasswordInput" name="confirmPassword" class="{{ theme.input }} w-full px-4 py-2 rounded-lg">
+                        <button type="button" id="toggleConfirmPassword" class="absolute inset-y-0 right-0 px-3 flex items-center text-sm leading-5 top-7">
+                            <svg id="confirmEyeIconOpen" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            <svg id="confirmEyeIconClosed" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 hidden">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.243 4.243l-4.243-4.243" />
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="{{ theme.alerts.error }} hidden text-sm" id="passwordMismatch">As senhas não coincidem</div>
+                    <div class="{{ theme.alerts.success }} hidden" id="profileSuccess"></div>
+                    <div class="{{ theme.alerts.error }} hidden" id="profileError"></div>
                     <button type="submit" class="{{ theme.btn }} w-full py-2 rounded-lg text-white">Salvar Alterações</button>
                 </form>
             </div>
         </div>
     </div>
 
+    <!-- Create Workflow Modal -->
+    <div id="createWorkflowModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="{{ theme.modal }} rounded-lg p-8 max-w-md w-full relative">
+                <button onclick="closeModal('createWorkflowModal')" class="absolute top-4 right-4 {{ theme.accent }} hover:opacity-75 transition-opacity">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+                <h2 class="text-2xl font-bold mb-6 {{ theme.text }}">Criar Novo Workflow</h2>
+                <form id="createWorkflowForm" class="space-y-4">
+                    <div>
+                        <label class="block mb-2 {{ theme.text }}">Nome</label>
+                        <input type="text" id="workflowNome" name="nome" required class="{{ theme.input }} w-full px-4 py-2 rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block mb-2 {{ theme.text }}">Descrição</label>
+                        <textarea id="workflowDescricao" name="descricao" rows="3" class="{{ theme.input }} w-full px-4 py-2 rounded-lg"></textarea>
+                    </div>
+                    <div>
+                        <label class="block mb-2 {{ theme.text }}">Tipo</label>
+                        <select id="workflowTipo" name="tipo" required class="{{ theme.input }} w-full px-4 py-2 rounded-lg">
+                            <option value="">Selecione o tipo</option>
+                            <option value="comparativo">Comparativo</option>
+                            <option value="evolucao">Evolução</option>
+                        </select>
+                    </div>
+                    <div class="{{ theme.alerts.success }} hidden" id="createSuccess"></div>
+                    <div class="{{ theme.alerts.error }} hidden" id="createError"></div>
+                    <button type="submit" class="{{ theme.btn }} w-full py-2 rounded-lg text-white">Criar Workflow</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Workflow Modal -->
+    <div id="editWorkflowModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="{{ theme.modal }} rounded-lg p-8 max-w-md w-full relative">
+                <button onclick="closeModal('editWorkflowModal')" class="absolute top-4 right-4 {{ theme.accent }} hover:opacity-75 transition-opacity">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+                <h2 class="text-2xl font-bold mb-6 {{ theme.text }}">Editar Workflow</h2>
+                <form id="editWorkflowForm" class="space-y-4">
+                    <input type="hidden" id="editWorkflowId">
+                    <div>
+                        <label class="block mb-2 {{ theme.text }}">Nome</label>
+                        <input type="text" id="editWorkflowNome" name="nome" required class="{{ theme.input }} w-full px-4 py-2 rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block mb-2 {{ theme.text }}">Descrição</label>
+                        <textarea id="editWorkflowDescricao" name="descricao" rows="3" class="{{ theme.input }} w-full px-4 py-2 rounded-lg"></textarea>
+                    </div>
+                    <div>
+                        <label class="block mb-2 {{ theme.text }}">Tipo</label>
+                        <select id="editWorkflowTipo" name="tipo" required class="{{ theme.input }} w-full px-4 py-2 rounded-lg">
+                            <option value="comparativo">Comparativo</option>
+                            <option value="evolucao">Evolução</option>
+                        </select>
+                    </div>
+                    <div class="{{ theme.alerts.success }} hidden" id="editSuccess"></div>
+                    <div class="{{ theme.alerts.error }} hidden" id="editError"></div>
+                    <button type="submit" class="{{ theme.btn }} w-full py-2 rounded-lg text-white">Salvar Alterações</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="deleteWorkflowModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="{{ theme.modal }} rounded-lg p-6 max-w-md w-full relative">
+                <div class="text-center">
+                    <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full {{ theme.danger_icon.container }} mb-4">
+                        <svg class="h-6 w-6 {{ theme.danger_icon.icon }}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-medium {{ theme.text }} mb-2">Confirmar Exclusão</h3>
+                    <p class="{{ theme.text }} opacity-75 mb-6" id="deleteWorkflowMessage">Tem certeza que deseja excluir este workflow?</p>
+                    <div class="flex space-x-3">
+                        <button onclick="closeModal('deleteWorkflowModal')" class="flex-1 {{ theme.buttons.secondary }} px-4 py-2 rounded-lg transition-colors duration-200">
+                            Cancelar
+                        </button>
+                        <button onclick="confirmDeleteWorkflow()" class="flex-1 {{ theme.buttons.danger }} px-4 py-2 rounded-lg transition-colors duration-200">
+                            Excluir
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         // --- Definições de Funções ---
-        function openModal(modalId) {
-            const modal = document.getElementById(modalId);
-            if (modal) modal.classList.remove('hidden');
-        }
-
-        function closeModal(modalId) {
-            const modal = document.getElementById(modalId);
-            if (modal) modal.classList.add('hidden');
+        function changeTheme(theme) {
+            fetch('/theme/' + theme, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            }).then(response => {
+                if (response.ok) {
+                    window.location.reload();
+                }
+            });
         }
 
         function logout() {
@@ -163,14 +287,188 @@
                 });
         }
 
-        function changeTheme(theme) {
-            fetch(`/theme/${theme}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            }).then(response => {
-                if (response.ok) window.location.reload();
+        function openModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) modal.classList.remove('hidden');
+        }
+
+        function closeModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) modal.classList.add('hidden');
+        }
+
+        // --- Workflow Functions ---
+        let workflowToDelete = null;
+
+        function openCreateWorkflowModal() {
+            document.getElementById('createWorkflowForm').reset();
+            document.getElementById('createSuccess').classList.add('hidden');
+            document.getElementById('createError').classList.add('hidden');
+            openModal('createWorkflowModal');
+        }
+
+        function editWorkflow(workflowId) {
+            const button = event.target.closest('button');
+            const nome = button.dataset.nome;
+            const descricao = button.dataset.descricao;
+            const tipo = button.dataset.tipo;
+            
+            document.getElementById('editWorkflowId').value = workflowId;
+            document.getElementById('editWorkflowNome').value = nome;
+            document.getElementById('editWorkflowDescricao').value = descricao || '';
+            document.getElementById('editWorkflowTipo').value = tipo;
+            
+            document.getElementById('editSuccess').classList.add('hidden');
+            document.getElementById('editError').classList.add('hidden');
+            openModal('editWorkflowModal');
+        }
+
+        function deleteWorkflow(workflowId) {
+            const button = event.target.closest('button');
+            const nome = button.dataset.nome;
+            
+            workflowToDelete = workflowId;
+            document.getElementById('deleteWorkflowMessage').textContent = 
+                `Tem certeza que deseja excluir o workflow "${nome}"? Esta ação não pode ser desfeita.`;
+            openModal('deleteWorkflowModal');
+        }
+
+        function confirmDeleteWorkflow() {
+            if (!workflowToDelete) return;
+            
+            fetch(`/api/workflows/${workflowToDelete}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(result => {
+                closeModal('deleteWorkflowModal');
+                if (result.error) {
+                    showNotification('Erro: ' + result.error, 'error');
+                } else {
+                    showNotification('Workflow excluído com sucesso!', 'success');
+                    setTimeout(() => location.reload(), 1500);
+                }
+                workflowToDelete = null;
+            })
+            .catch(error => {
+                closeModal('deleteWorkflowModal');
+                console.error('Erro:', error);
+                showNotification('Erro ao excluir workflow. Tente novamente.', 'error');
+                workflowToDelete = null;
             });
         }
+
+        function enterWorkflow(workflowNome) {
+            window.location.href = `/dashboard/${encodeURIComponent(workflowNome)}`;
+        }
+
+        function showNotification(message, type) {
+            const notification = document.createElement('div');
+            const toastSuccessClass = '{{ theme.toast.success }}';
+            const toastErrorClass = '{{ theme.toast.error }}';
+            notification.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 transition-all duration-300 ${
+                type === 'success' ? toastSuccessClass : toastErrorClass
+            }`;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.opacity = '0';
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.parentNode.removeChild(notification);
+                    }
+                }, 300);
+            }, 3000);
+        }
+
+        // Form submissions
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('createWorkflowForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const formData = new FormData(this);
+                const data = {
+                    nome: formData.get('nome'),
+                    descricao: formData.get('descricao'),
+                    tipo: formData.get('tipo')
+                };
+                
+                fetch('/api/workflows', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.error) {
+                        document.getElementById('createError').textContent = result.error;
+                        document.getElementById('createError').classList.remove('hidden');
+                        document.getElementById('createSuccess').classList.add('hidden');
+                    } else {
+                        document.getElementById('createSuccess').textContent = result.message;
+                        document.getElementById('createSuccess').classList.remove('hidden');
+                        document.getElementById('createError').classList.add('hidden');
+                        setTimeout(() => {
+                            closeModal('createWorkflowModal');
+                            location.reload();
+                        }, 1500);
+                    }
+                })
+                .catch(error => {
+                    console.error('Erro:', error);
+                    document.getElementById('createError').textContent = 'Erro ao criar workflow. Tente novamente.';
+                    document.getElementById('createError').classList.remove('hidden');
+                });
+            });
+
+            document.getElementById('editWorkflowForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const workflowId = document.getElementById('editWorkflowId').value;
+                const formData = new FormData(this);
+                const data = {
+                    nome: formData.get('nome'),
+                    descricao: formData.get('descricao'),
+                    tipo: formData.get('tipo')
+                };
+                
+                fetch(`/api/workflows/${workflowId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.error) {
+                        document.getElementById('editError').textContent = result.error;
+                        document.getElementById('editError').classList.remove('hidden');
+                        document.getElementById('editSuccess').classList.add('hidden');
+                    } else {
+                        document.getElementById('editSuccess').textContent = result.message;
+                        document.getElementById('editSuccess').classList.remove('hidden');
+                        document.getElementById('editError').classList.add('hidden');
+                        setTimeout(() => {
+                            closeModal('editWorkflowModal');
+                            location.reload();
+                        }, 1500);
+                    }
+                })
+                .catch(error => {
+                    console.error('Erro:', error);
+                    document.getElementById('editError').textContent = 'Erro ao editar workflow. Tente novamente.';
+                    document.getElementById('editError').classList.remove('hidden');
+                });
+            });
+        });
 
         function createThemeMenu() {
             const menuPortal = document.getElementById('menuPortal');
@@ -235,8 +533,19 @@
             const buttonRect = button.getBoundingClientRect();
             
             if (menu.classList.contains('hidden')) {
-                menu.style.top = buttonRect.top + 'px';
-                menu.style.left = (buttonRect.right + 12) + 'px'; // Posiciona à direita do botão
+                // Calcular posição para evitar que o menu saia da tela
+                const viewportHeight = window.innerHeight;
+                const menuHeight = 200; // Altura aproximada do menu
+                
+                let topPosition = buttonRect.top;
+                
+                // Se o menu sairia da parte inferior da tela, posiciona acima do botão
+                if (buttonRect.top + menuHeight > viewportHeight) {
+                    topPosition = buttonRect.top - menuHeight;
+                }
+                
+                menu.style.top = topPosition + 'px';
+                menu.style.left = (buttonRect.right + 12) + 'px';
                 menu.classList.remove('hidden');
             } else {
                 menu.classList.add('hidden');
@@ -256,10 +565,62 @@
             }
         }
 
+        function toggleConfirmPassword() {
+            const confirmPasswordInput = document.getElementById('confirmPasswordInput');
+            const confirmEyeIconOpen = document.getElementById('confirmEyeIconOpen');
+            const confirmEyeIconClosed = document.getElementById('confirmEyeIconClosed');
+
+            const type = confirmPasswordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+            confirmPasswordInput.setAttribute('type', type);
+            if (confirmEyeIconOpen && confirmEyeIconClosed) {
+                confirmEyeIconOpen.classList.toggle('hidden');
+                confirmEyeIconClosed.classList.toggle('hidden');
+            }
+        }
+
+        function validatePasswords() {
+            const password = document.getElementById('passwordInput').value;
+            const confirmPassword = document.getElementById('confirmPasswordInput').value;
+            const mismatchDiv = document.getElementById('passwordMismatch');
+
+            if (password || confirmPassword) {
+                if (password !== confirmPassword) {
+                    mismatchDiv.classList.remove('hidden');
+                    return false;
+                } else {
+                    mismatchDiv.classList.add('hidden');
+                    return true;
+                }
+            } else {
+                mismatchDiv.classList.add('hidden');
+                return true;
+            }
+        }
+
+        function openUserProfile() {
+            // Reset modal for current user profile
+            document.getElementById('modalTitle').textContent = 'Meu Perfil';
+            document.getElementById('userId').value = '';
+            document.getElementById('nomeInput').value = '{{ current_user.nome }}';
+            document.getElementById('emailInput').value = '{{ current_user.email }}';
+            document.getElementById('passwordInput').value = '';
+            document.getElementById('confirmPasswordInput').value = '';
+            openModal('userProfileModal');
+        }
+
         function submitUserProfileForm(event) {
             event.preventDefault();
+            
+            // Validate passwords before submission
+            if (!validatePasswords()) {
+                return;
+            }
+            
             const formData = new FormData(event.target);
             const data = Object.fromEntries(formData.entries());
+
+            // Remove confirmPassword from data before sending
+            delete data.confirmPassword;
 
             if (data.password === '') {
                 delete data.password;
@@ -296,10 +657,23 @@
         document.addEventListener('DOMContentLoaded', function() {
             createThemeMenu();
 
-            // Lógica do Modal de Perfil
+            // Profile modal functionality
             const togglePasswordButton = document.getElementById('togglePassword');
             if (togglePasswordButton) {
                 togglePasswordButton.addEventListener('click', togglePassword);
+            }
+
+            const toggleConfirmPasswordButton = document.getElementById('toggleConfirmPassword');
+            if (toggleConfirmPasswordButton) {
+                toggleConfirmPasswordButton.addEventListener('click', toggleConfirmPassword);
+            }
+
+            // Add real-time password validation
+            const passwordInput = document.getElementById('passwordInput');
+            const confirmPasswordInput = document.getElementById('confirmPasswordInput');
+            if (passwordInput && confirmPasswordInput) {
+                passwordInput.addEventListener('input', validatePasswords);
+                confirmPasswordInput.addEventListener('input', validatePasswords);
             }
 
             const userProfileForm = document.getElementById('userProfileForm');
@@ -321,3 +695,4 @@
     </script>
 </body>
 </html>
+

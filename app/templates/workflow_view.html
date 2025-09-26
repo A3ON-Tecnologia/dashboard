@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ workflow.nome }} - Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .theme-light {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8fafc;
+            --text-primary: #1f2937;
+            --text-secondary: #6b7280;
+            --accent: #3b82f6;
+            --border: #e5e7eb;
+        }
+        
+        .theme-dark {
+            --bg-primary: #1f2937;
+            --bg-secondary: #374151;
+            --text-primary: #f9fafb;
+            --text-secondary: #d1d5db;
+            --accent: #60a5fa;
+            --border: #4b5563;
+        }
+        
+        .theme-neon {
+            --bg-primary: #0f0f23;
+            --bg-secondary: #1a1a3e;
+            --text-primary: #00ff88;
+            --text-secondary: #88ffaa;
+            --accent: #ff0088;
+            --border: #333366;
+        }
+        
+        .theme-futuristic {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #1a1a1a;
+            --text-primary: #00d4ff;
+            --text-secondary: #66e0ff;
+            --accent: #ff6600;
+            --border: #333333;
+        }
+    </style>
+</head>
+<body class="{{ theme.bg }} {{ theme.text }} transition-colors duration-300">
+    <div class="flex min-h-screen">
+        <!-- Sidebar -->
+        {% include 'partials/sidebar.html' %}
+
+        <!-- Main Content -->
+        <main class="flex-grow p-8 overflow-auto">
+            <div class="space-y-8">
+                <!-- Header -->
+                <div class="flex justify-between items-center">
+                    <div>
+                        <div class="flex items-center space-x-4 mb-2">
+                            <a href="/dashboard" class="{{ theme.text }} hover:{{ theme.accent }} transition-colors duration-200">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+                                </svg>
+                            </a>
+                            <h1 class="text-3xl font-bold {{ theme.text }}">{{ workflow.nome }}</h1>
+                            <span class="px-3 py-1 rounded-full text-xs font-medium {% if workflow.tipo == 'comparativo' %}bg-blue-100 text-blue-800{% else %}bg-green-100 text-green-800{% endif %}">
+                                {{ workflow.tipo.title() }}
+                            </span>
+                        </div>
+                        <p class="{{ theme.text }} opacity-75">{{ workflow.descricao or 'Workflow de Business Intelligence' }}</p>
+                        <p class="{{ theme.text }} opacity-50 text-sm">Criado em {{ workflow.data_criacao.strftime('%d/%m/%Y às %H:%M') }}</p>
+                    </div>
+                </div>
+
+                <!-- Workflow Content -->
+                <div class="{{ theme.modal }} rounded-lg p-8">
+                    <div class="text-center py-16">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-24 h-24 {{ theme.text }} opacity-50 mx-auto mb-6">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" />
+                        </svg>
+                        <h3 class="text-2xl font-bold {{ theme.text }} mb-4">Workflow em Desenvolvimento</h3>
+                        <p class="{{ theme.text }} opacity-75 mb-8 max-w-2xl mx-auto">
+                            Esta é a página individual do workflow <strong>{{ workflow.nome }}</strong>. 
+                            Aqui será implementada a funcionalidade específica para workflows do tipo <strong>{{ workflow.tipo }}</strong>.
+                        </p>
+                        <div class="space-y-4">
+                            <div class="{{ theme.modal }} border-l-4 {% if workflow.tipo == 'comparativo' %}border-blue-500{% else %}border-green-500{% endif %} p-4 text-left max-w-2xl mx-auto">
+                                <h4 class="font-bold {{ theme.text }} mb-2">Próximas Funcionalidades:</h4>
+                                <ul class="{{ theme.text }} opacity-75 space-y-1 text-sm">
+                                    {% if workflow.tipo == 'comparativo' %}
+                                    <li>• Upload de arquivos para comparação</li>
+                                    <li>• Visualização de diferenças entre datasets</li>
+                                    <li>• Gráficos comparativos interativos</li>
+                                    <li>• Relatórios de análise comparativa</li>
+                                    {% else %}
+                                    <li>• Upload de dados temporais</li>
+                                    <li>• Visualização de tendências e evolução</li>
+                                    <li>• Gráficos de linha temporal</li>
+                                    <li>• Análise de crescimento e padrões</li>
+                                    {% endif %}
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // --- Modal Functions ---
+        function openModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) modal.classList.remove('hidden');
+        }
+
+        function closeModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) modal.classList.add('hidden');
+        }
+
+        // --- Authentication Functions ---
+        function logout() {
+            fetch('/logout')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.message) {
+                        window.location.href = '/';
+                    }
+                });
+        }
+
+        // --- Theme Functions ---
+        function changeTheme(theme) {
+            fetch(`/theme/${theme}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            }).then(response => {
+                if (response.ok) window.location.reload();
+            });
+        }
+
+        function createThemeMenu() {
+            const menuPortal = document.getElementById('menuPortal');
+            if (!menuPortal) return;
+
+            const existingMenu = document.getElementById('themeMenu');
+            if (existingMenu) {
+                existingMenu.remove();
+                return;
+            }
+
+            const menu = document.createElement('div');
+            menu.id = 'themeMenu';
+            menu.className = 'absolute bottom-full right-0 mb-2 {{ theme.modal }} rounded-lg shadow-lg border {{ theme.border }} p-2 min-w-[120px] z-50';
+            
+            const themes = [
+                { name: 'Claro', value: 'light' },
+                { name: 'Escuro', value: 'dark' },
+                { name: 'Neon', value: 'neon' },
+                { name: 'Futurista', value: 'futuristic' }
+            ];
+
+            themes.forEach(theme => {
+                const button = document.createElement('button');
+                button.textContent = theme.name;
+                button.className = 'block w-full text-left px-3 py-2 text-sm {{ theme.text }} hover:{{ theme.accent }} hover:bg-opacity-20 rounded transition-colors duration-200';
+                button.onclick = () => {
+                    changeTheme(theme.value);
+                    menu.remove();
+                };
+                menu.appendChild(button);
+            });
+
+            menuPortal.appendChild(menu);
+
+            // Close menu when clicking outside
+            setTimeout(() => {
+                document.addEventListener('click', function closeMenu(e) {
+                    if (!menu.contains(e.target)) {
+                        menu.remove();
+                        document.removeEventListener('click', closeMenu);
+                    }
+                });
+            }, 0);
+        }
+
+        function toggleThemeMenu(event) {
+            event.stopPropagation();
+            createThemeMenu();
+        }
+
+        function openUserProfile() {
+            // User profile functionality would go here
+            console.log('Open user profile');
+        }
+    </script>
+</body>
+</html>

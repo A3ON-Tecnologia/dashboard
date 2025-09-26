@@ -4,6 +4,7 @@ from flask_login import LoginManager
 from flask_migrate import Migrate
 from config import Config
 from app.models.user import db, User
+from app.models.workflow import Workflow
 from app.services.auth_service import init_bcrypt
 
 login_manager = LoginManager()
@@ -38,13 +39,17 @@ def create_app():
     login_manager.login_message_category = 'info'
     
     with app.app_context():
-        # Register blueprints
+        # Importar e registrar blueprints
         from app.routes.auth import auth_bp
         from app.routes.main import main_bp
         from app.routes.admin import admin_bp
+        from app.routes.workflow import workflow_bp
+        
         app.register_blueprint(auth_bp)
         app.register_blueprint(main_bp)
         app.register_blueprint(admin_bp)
+        app.register_blueprint(workflow_bp)
         
         
         return app
+

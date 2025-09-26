@@ -1,5 +1,6 @@
 from flask import Blueprint, render_template, jsonify
 from flask_login import login_required, current_user
+from app.models.workflow import Workflow
 from app.services.theme_service import get_current_theme, update_user_theme
 
 main_bp = Blueprint('main', __name__)
@@ -13,9 +14,11 @@ def home():
 @login_required
 def dashboard():
     theme = get_current_theme()
-    return render_template('dashboard.html', theme=theme)
+    workflows = Workflow.query.filter_by(usuario_id=current_user.id).order_by(Workflow.data_criacao.desc()).all()
+    return render_template('dashboard.html', theme=theme, workflows=workflows)
 
 @main_bp.route('/theme/<theme_name>', methods=['POST'])
 def change_theme(theme_name):
     theme = update_user_theme(theme_name)
     return jsonify({'message': 'Tema atualizado com sucesso!', 'theme': theme})
+
