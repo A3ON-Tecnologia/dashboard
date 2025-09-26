@@ -157,57 +157,116 @@
         }
 
         function createThemeMenu() {
-            const menuPortal = document.getElementById('menuPortal');
-            if (!menuPortal) return;
-
-            const existingMenu = document.getElementById('themeMenu');
-            if (existingMenu) {
-                existingMenu.remove();
+            if (document.getElementById('themeMenuContainer')) {
                 return;
             }
 
+            if (!document.getElementById('menuPortal')) return;
+
+            const menuContainer = document.createElement('div');
+            menuContainer.id = 'themeMenuContainer';
+            menuContainer.style.position = 'fixed';
+            menuContainer.style.top = '0';
+            menuContainer.style.left = '0';
+            menuContainer.style.width = '100vw';
+            menuContainer.style.height = '100vh';
+            menuContainer.style.pointerEvents = 'none';
+            menuContainer.style.zIndex = '99999';
+            document.body.appendChild(menuContainer);
+
             const menu = document.createElement('div');
             menu.id = 'themeMenu';
-            menu.className = 'absolute bottom-full right-0 mb-2 {{ theme.modal }} rounded-lg shadow-lg border {{ theme.border }} p-2 min-w-[120px] z-50';
-            
+            menu.className = 'hidden {{ theme.modal }} rounded-lg shadow-xl py-1 w-56';
+            menu.style.position = 'absolute';
+            menu.style.pointerEvents = 'auto';
+
             const themes = [
-                { name: 'Claro', value: 'light' },
-                { name: 'Escuro', value: 'dark' },
-                { name: 'Neon', value: 'neon' },
-                { name: 'Futurista', value: 'futuristic' }
+                { name: 'Escuro', value: 'dark', preview: 'bg-gradient-to-r from-gray-900 via-gray-800 to-gray-700' },
+                { name: 'Claro', value: 'light', preview: 'bg-gradient-to-r from-blue-500 via-white to-gray-100' },
+                { name: 'Neon', value: 'neon', preview: 'bg-gradient-to-r from-purple-600 via-green-400 to-black' },
+                { name: 'Futurista', value: 'futurist', preview: 'bg-gradient-to-r from-blue-600 via-cyan-400 to-purple-600' }
             ];
 
-            themes.forEach(theme => {
-                const button = document.createElement('button');
-                button.textContent = theme.name;
-                button.className = 'block w-full text-left px-3 py-2 text-sm {{ theme.text }} hover:{{ theme.accent }} hover:bg-opacity-20 rounded transition-colors duration-200';
-                button.onclick = () => {
-                    changeTheme(theme.value);
-                    menu.remove();
+            themes.forEach(themeOption => {
+                const link = document.createElement('a');
+                link.href = '#';
+                link.className = 'block px-4 py-2 text-sm hover:{{ theme.accent }} flex items-center justify-between';
+
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'flex items-center gap-3';
+
+                const nameSpan = document.createElement('span');
+                nameSpan.textContent = themeOption.name;
+
+                const previewDiv = document.createElement('div');
+                previewDiv.className = `w-5 h-5 rounded-full ${themeOption.preview} border border-gray-400/20`;
+
+                contentDiv.appendChild(previewDiv);
+                contentDiv.appendChild(nameSpan);
+                link.appendChild(contentDiv);
+
+                link.onclick = (e) => {
+                    e.preventDefault();
+                    changeTheme(themeOption.value);
+                    const menuEl = document.getElementById('themeMenu');
+                    if (menuEl) {
+                        menuEl.classList.add('hidden');
+                    }
                 };
-                menu.appendChild(button);
+
+                menu.appendChild(link);
             });
 
-            menuPortal.appendChild(menu);
-
-            // Close menu when clicking outside
-            setTimeout(() => {
-                document.addEventListener('click', function closeMenu(e) {
-                    if (!menu.contains(e.target)) {
-                        menu.remove();
-                        document.removeEventListener('click', closeMenu);
-                    }
-                });
-            }, 0);
+            menuContainer.appendChild(menu);
         }
 
         function toggleThemeMenu(event) {
-            event.stopPropagation();
-            createThemeMenu();
+            const menu = document.getElementById('themeMenu');
+            if (!menu) return;
+
+            const button = event.currentTarget;
+            const buttonRect = button.getBoundingClientRect();
+
+            if (menu.classList.contains('hidden')) {
+                const viewportHeight = window.innerHeight;
+                const viewportWidth = window.innerWidth;
+                const menuHeight = 200;
+                const menuWidth = 240;
+
+                let topPosition = buttonRect.top;
+                let leftPosition = buttonRect.right + 12;
+
+                if (buttonRect.top + menuHeight > viewportHeight) {
+                    topPosition = Math.max(16, buttonRect.bottom - menuHeight);
+                }
+
+                if (leftPosition + menuWidth > viewportWidth) {
+                    leftPosition = Math.max(16, buttonRect.left - menuWidth - 12);
+                }
+
+                menu.style.top = `${topPosition}px`;
+                menu.style.left = `${leftPosition}px`;
+                menu.classList.remove('hidden');
+            } else {
+                menu.classList.add('hidden');
+            }
         }
 
+        document.addEventListener('DOMContentLoaded', function() {
+            createThemeMenu();
+
+            document.addEventListener('click', function(event) {
+                const menu = document.getElementById('themeMenu');
+                if (!menu || menu.classList.contains('hidden')) return;
+
+                const isThemeButton = event.target.closest('button[title="Alterar Tema"]');
+                if (!isThemeButton && !menu.contains(event.target)) {
+                    menu.classList.add('hidden');
+                }
+            });
+        });
+
         function openUserProfile() {
-            // User profile functionality would go here
             console.log('Open user profile');
         }
     </script>
