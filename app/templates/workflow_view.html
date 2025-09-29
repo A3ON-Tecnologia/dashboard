@@ -144,7 +144,7 @@
                     </div>
                 </header>
 
-                <section class="grid lg:grid-cols-[2fr,1fr] gap-6">
+                <section class="space-y-6">
                     <div class="glass-panel {{ theme.modal }} border border-white/5 rounded-3xl p-6 md:p-7 shadow-xl shadow-blue-500/10">
                         <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
                             <div>
@@ -160,6 +160,14 @@
                             <button id="createChartBtn" class="hidden {{ theme.buttons.secondary }} px-5 py-2.5 rounded-full text-sm font-semibold tracking-wide uppercase transition-transform duration-300 hover:-translate-y-0.5">
                                 Criar grafico
                             </button>
+                        </div>
+
+                        <div id="paginationWrapper" class="hidden w-full flex-col gap-2 mb-4 text-sm text-white/60 md:flex-row md:items-center md:justify-between">
+                            <span id="paginationInfo" class="text-left md:flex-1"></span>
+                            <div class="flex items-center gap-3 md:justify-end">
+                                <button id="prevPageBtn" class="px-4 py-2 rounded-full border border-white/15 bg-white/5 hover:border-white/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">Anterior</button>
+                                <button id="nextPageBtn" class="px-4 py-2 rounded-full border border-white/15 bg-white/5 hover:border-white/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">Próximo</button>
+                            </div>
                         </div>
 
                         <div id="tableEmptyState" class="border border-dashed border-white/10 rounded-2xl p-10 text-center space-y-4 {% if processed_data %}hidden{% endif %}">
@@ -198,51 +206,6 @@
                         </div>
                     </div>
 
-                        <div id="paginationWrapper" class="mt-6 hidden items-center justify-between text-xs uppercase tracking-widest text-white/60">
-                            <span id="paginationInfo" class="flex-1"></span>
-                            <div class="flex items-center gap-3">
-                                <button id="prevPageBtn" class="px-4 py-2 rounded-full border border-white/15 bg-white/5 hover:border-white/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">Anterior</button>
-                                <button id="nextPageBtn" class="px-4 py-2 rounded-full border border-white/15 bg-white/5 hover:border-white/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">Próximo</button>
-                            </div>
-                        </div>
-
-                    <aside class="space-y-6">
-                        <div class="glass-panel {{ theme.modal }} border border-white/5 rounded-3xl p-6 shadow-lg shadow-blue-500/10">
-                            <div class="flex items-center justify-between mb-4">
-                                <h3 class="text-lg font-semibold tracking-tight">Uploads recentes</h3>
-                                <button id="refreshHistoryBtn" class="text-xs font-semibold uppercase tracking-wide text-white/60 hover:text-white/90 transition-colors">
-                                    Atualizar
-                                </button>
-                            </div>
-                            <ul id="historyList" class="space-y-4 text-sm text-white/70">
-                                <li class="text-white/50 text-xs uppercase tracking-wide">
-                                    {% if not arquivo_atual %}
-                                        Nenhum upload realizado ate o momento.
-                                    {% else %}
-                                        Sincronizando registros...
-                                    {% endif %}
-                                </li>
-                            </ul>
-                        </div>
-
-                        <div class="glass-panel {{ theme.modal }} border border-white/5 rounded-3xl p-6 shadow-lg shadow-blue-500/10">
-                            <h3 class="text-lg font-semibold tracking-tight mb-4">Como funciona</h3>
-                            <ul class="space-y-3 text-sm text-white/65 leading-relaxed">
-                                <li class="flex gap-3">
-                                    <span class="h-2 w-2 mt-2 rounded-full bg-blue-400"></span>
-                                    <span>Envie arquivos CSV ou XLSX com as colunas do modelo comparativo.</span>
-                                </li>
-                                <li class="flex gap-3">
-                                    <span class="h-2 w-2 mt-2 rounded-full bg-emerald-400"></span>
-                                    <span>Calculamos automaticamente as diferencas absoluta e percentual.</span>
-                                </li>
-                                <li class="flex gap-3">
-                                    <span class="h-2 w-2 mt-2 rounded-full bg-pink-400"></span>
-                                    <span>Os dados validados ficarao prontos para uso nos graficos da proxima etapa.</span>
-                                </li>
-                            </ul>
-                        </div>
-                    </aside>
                 </section>
             </div>
         </main>
@@ -353,7 +316,7 @@
         let currentArquivo = initialArquivo;
         let fakeProgressInterval = null;
         let currentPage = 1;
-        const rowsPerPage = 10;
+        const rowsPerPage = 5;
 
         function openUploadModal() {
             document.getElementById('uploadModal').classList.remove('hidden');
@@ -463,6 +426,7 @@
                 createChartBtn.classList.add('hidden');
                 tableSubtitle.textContent = 'Selecione um arquivo CSV ou XLSX para liberar a visualizacao.';
                 tbody.innerHTML = '';
+                updatePagination(0, 0, 0, 0);
                 return;
             }
 
@@ -474,8 +438,23 @@
             headPeriodo1.textContent = data.periodo_1_label || 'Periodo 1';
             headPeriodo2.textContent = data.periodo_2_label || 'Periodo 2';
 
+            const totalItems = data.indicadores.length;
+            const totalPages = Math.max(Math.ceil(totalItems / rowsPerPage), 1);
+
+            if (currentPage > totalPages) {
+                currentPage = totalPages;
+            }
+
+            if (currentPage < 1) {
+                currentPage = 1;
+            }
+
+            const startIndex = (currentPage - 1) * rowsPerPage;
+            const endIndexExclusive = startIndex + rowsPerPage;
+            const pageItems = data.indicadores.slice(startIndex, endIndexExclusive);
+
             tbody.innerHTML = '';
-            data.indicadores.forEach((item, index) => {
+            pageItems.forEach((item, index) => {
                 const row = document.createElement('tr');
                 row.className = 'fade-in-up';
                 row.style.animationDelay = `${index * 60}ms`;
@@ -499,6 +478,10 @@
                 `;
                 tbody.appendChild(row);
             });
+
+            const pageStartDisplay = totalItems === 0 ? 0 : startIndex + 1;
+            const pageEndDisplay = totalItems === 0 ? 0 : Math.min(endIndexExclusive, totalItems);
+            updatePagination(totalItems, totalPages, pageStartDisplay, pageEndDisplay);
         }
 
         function formatNumber(value) {
@@ -538,6 +521,7 @@
                 const payload = await response.json();
                 currentData = payload.dados;
                 currentArquivo = payload.arquivo;
+                currentPage = 1;
                 updateUploadInfo();
                 renderTable(currentData);
             } catch (error) {
@@ -547,6 +531,10 @@
         }
 
         async function fetchHistorico() {
+            const historyList = document.getElementById('historyList');
+            if (!historyList) {
+                return;
+            }
             try {
                 const response = await fetch(historicoEndpoint);
                 if (!response.ok) {
@@ -562,6 +550,9 @@
 
         function renderHistorico(itens) {
             const historyList = document.getElementById('historyList');
+            if (!historyList) {
+                return;
+            }
             historyList.innerHTML = '';
 
             if (!Array.isArray(itens) || itens.length === 0) {
@@ -584,6 +575,30 @@
                 `;
                 historyList.appendChild(li);
             });
+        }
+
+        function updatePagination(totalItems, totalPages, startDisplay, endDisplay) {
+            const wrapper = document.getElementById('paginationWrapper');
+            const info = document.getElementById('paginationInfo');
+            const prevBtn = document.getElementById('prevPageBtn');
+            const nextBtn = document.getElementById('nextPageBtn');
+
+            if (!wrapper || !info || !prevBtn || !nextBtn) {
+                return;
+            }
+
+            if (!totalItems || totalItems <= rowsPerPage) {
+                wrapper.classList.add('hidden');
+                info.textContent = '';
+                prevBtn.disabled = true;
+                nextBtn.disabled = true;
+                return;
+            }
+
+            wrapper.classList.remove('hidden');
+            info.textContent = `Mostrando ${startDisplay}-${endDisplay} de ${totalItems} indicadores - Página ${currentPage} de ${totalPages}`;
+            prevBtn.disabled = currentPage <= 1;
+            nextBtn.disabled = currentPage >= totalPages;
         }
 
         function formatDate(timestamp) {
@@ -696,6 +711,7 @@
 
                 currentData = payload.dados_processados;
                 currentArquivo = payload.arquivo;
+                currentPage = 1;
                 renderTable(currentData);
                 updateUploadInfo();
                 refreshData();
@@ -760,11 +776,31 @@
                 showToast('Dados prontos para a etapa de graficos.', 'success');
                 closeGraphModal();
             });
-            document.getElementById('refreshHistoryBtn').addEventListener('click', refreshData);
+            const refreshHistoryBtn = document.getElementById('refreshHistoryBtn');
+            if (refreshHistoryBtn) {
+                refreshHistoryBtn.addEventListener('click', refreshData);
+            }
+            document.getElementById('prevPageBtn').addEventListener('click', () => {
+                if (currentPage > 1) {
+                    currentPage -= 1;
+                    renderTable(currentData);
+                }
+            });
+            document.getElementById('nextPageBtn').addEventListener('click', () => {
+                if (!currentData || !Array.isArray(currentData.indicadores)) {
+                    return;
+                }
+                const totalPages = Math.max(Math.ceil(currentData.indicadores.length / rowsPerPage), 1);
+                if (currentPage < totalPages) {
+                    currentPage += 1;
+                    renderTable(currentData);
+                }
+            });
             prepareEmptyStateTrigger();
         }
 
         function bootstrapView() {
+            currentPage = 1;
             if (currentData) {
                 renderTable(currentData);
             } else {
