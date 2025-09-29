@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ workflow.nome }} - Dashboard</title>
+    <title>{{ workflow.nome }} - Workflow</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -20,133 +20,779 @@
         }
     </script>
     <style>
-        body {
-            font-family: 'Space Grotesk', 'Segoe UI', -apple-system, system-ui, sans-serif;
+        :root {
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --glass-bg: rgba(15, 23, 42, 0.65);
         }
 
-        .theme-light {
-            --bg-primary: #ffffff;
-            --bg-secondary: #f8fafc;
-            --text-primary: #1f2937;
-            --text-secondary: #6b7280;
-            --accent: #3b82f6;
-            --border: #e5e7eb;
+        .glass-panel {
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
         }
-        
-        .theme-dark {
-            --bg-primary: #1f2937;
-            --bg-secondary: #374151;
-            --text-primary: #f9fafb;
-            --text-secondary: #d1d5db;
-            --accent: #60a5fa;
-            --border: #4b5563;
+
+        .fade-in-up {
+            animation: fadeInUp 0.5s ease forwards;
         }
-        
-        .theme-neon {
-            --bg-primary: #0f0f23;
-            --bg-secondary: #1a1a3e;
-            --text-primary: #00ff88;
-            --text-secondary: #88ffaa;
-            --accent: #ff0088;
-            --border: #333366;
+
+        .scale-in {
+            animation: scaleIn 0.45s ease forwards;
         }
-        
-        .theme-futuristic {
-            --bg-primary: #0a0a0a;
-            --bg-secondary: #1a1a1a;
-            --text-primary: #00d4ff;
-            --text-secondary: #66e0ff;
-            --accent: #ff6600;
-            --border: #333333;
+
+        .pulse-border {
+            animation: pulseBorder 2.5s ease-in-out infinite;
+        }
+
+        @keyframes fadeInUp {
+            0% {
+                opacity: 0;
+                transform: translateY(14px);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes scaleIn {
+            0% {
+                opacity: 0;
+                transform: scale(0.94);
+            }
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        @keyframes pulseBorder {
+            0%, 100% {
+                box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.25);
+            }
+            50% {
+                box-shadow: 0 0 0 12px rgba(59, 130, 246, 0);
+            }
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(148, 163, 184, 0.45);
+            border-radius: 9999px;
         }
     </style>
 </head>
-<body class="{{ theme.bg }} {{ theme.text }} transition-colors duration-300">
+<body class="{{ theme.bg }} {{ theme.text }} font-sans min-h-screen">
     <div class="flex min-h-screen">
-        <!-- Sidebar -->
         {% include 'partials/sidebar.html' %}
 
-        <!-- Main Content -->
-        <main class="flex-grow p-8 overflow-auto">
-            <div class="space-y-8">
-                <!-- Header -->
-                <div class="flex justify-between items-center">
-                    <div>
-                        <div class="flex items-center space-x-4 mb-2">
-                            <a href="/dashboard" class="{{ theme.text }} hover:{{ theme.accent }} transition-colors duration-200">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
-                                </svg>
-                            </a>
-                            <h1 class="text-3xl font-bold {{ theme.text }}">{{ workflow.nome }}</h1>
-                            <span class="px-3 py-1 rounded-full text-xs font-medium {% if workflow.tipo == 'comparativo' %}bg-blue-100 text-blue-800{% else %}bg-green-100 text-green-800{% endif %}">
-                                {{ workflow.tipo.title() }}
-                            </span>
-                        </div>
-                        <p class="{{ theme.text }} opacity-75">{{ workflow.descricao or 'Workflow de Business Intelligence' }}</p>
-                        <p class="{{ theme.text }} opacity-50 text-sm">Criado em {{ workflow.data_criacao.strftime('%d/%m/%Y às %H:%M') }}</p>
-                    </div>
-                </div>
-
-                <!-- Workflow Content -->
-                <div class="{{ theme.modal }} rounded-lg p-8">
-                    <div class="text-center py-16">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-24 h-24 {{ theme.text }} opacity-50 mx-auto mb-6">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" />
-                        </svg>
-                        <h3 class="text-2xl font-bold {{ theme.text }} mb-4">Workflow em Desenvolvimento</h3>
-                        <p class="{{ theme.text }} opacity-75 mb-8 max-w-2xl mx-auto">
-                            Esta é a página individual do workflow <strong>{{ workflow.nome }}</strong>. 
-                            Aqui será implementada a funcionalidade específica para workflows do tipo <strong>{{ workflow.tipo }}</strong>.
-                        </p>
+        <main class="flex-1 overflow-y-auto">
+            <div class="max-w-7xl mx-auto px-6 md:px-10 py-10 space-y-8">
+                <header class="glass-panel {{ theme.modal }} border border-white/5 rounded-3xl p-8 shadow-2xl shadow-blue-500/10">
+                    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
                         <div class="space-y-4">
-                            <div class="{{ theme.modal }} border-l-4 {% if workflow.tipo == 'comparativo' %}border-blue-500{% else %}border-green-500{% endif %} p-4 text-left max-w-2xl mx-auto">
-                                <h4 class="font-bold {{ theme.text }} mb-2">Próximas Funcionalidades:</h4>
-                                <ul class="{{ theme.text }} opacity-75 space-y-1 text-sm">
-                                    {% if workflow.tipo == 'comparativo' %}
-                                    <li>• Upload de arquivos para comparação</li>
-                                    <li>• Visualização de diferenças entre datasets</li>
-                                    <li>• Gráficos comparativos interativos</li>
-                                    <li>• Relatórios de análise comparativa</li>
+                            <div class="flex items-center gap-4">
+                                <a href="/dashboard" class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-white/10 hover:border-white/30 transition-colors duration-300">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                                    </svg>
+                                </a>
+                                <div>
+                                    <p class="text-sm uppercase tracking-[0.35em] text-white/50">Workflow</p>
+                                    <h1 class="text-3xl md:text-4xl font-semibold tracking-tight">{{ workflow.nome }}</h1>
+                                </div>
+                                <span class="px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide {{ theme.badge[workflow.tipo] }}">
+                                    {{ workflow.tipo.title() }}
+                                </span>
+                            </div>
+                            <p class="text-white/70 max-w-3xl leading-relaxed">
+                                {{ workflow.descricao or 'Comparativo entre periodos com indicadores chave.' }}
+                            </p>
+                            <p class="text-xs text-white/40 uppercase tracking-widest">
+                                Criado em {{ workflow.data_criacao.strftime('%d/%m/%Y %H:%M') }}
+                            </p>
+                        </div>
+
+                        <div class="flex flex-col sm:flex-row gap-4">
+                            <div class="glass-panel border border-white/10 rounded-2xl px-5 py-4 text-sm min-w-[220px]">
+                                <p class="text-xs uppercase tracking-wider text-white/40">Ultimo upload</p>
+                                <p id="lastUploadName" class="text-sm font-medium text-white/80 truncate">
+                                    {% if arquivo_atual %}
+                                        {{ arquivo_atual.nome_arquivo }}
                                     {% else %}
-                                    <li>• Upload de dados temporais</li>
-                                    <li>• Visualização de tendências e evolução</li>
-                                    <li>• Gráficos de linha temporal</li>
-                                    <li>• Análise de crescimento e padrões</li>
+                                        Nenhum arquivo importado
                                     {% endif %}
-                                </ul>
+                                </p>
+                                <p id="lastUploadTime" class="text-xs text-white/40 mt-1">
+                                    {% if arquivo_atual and arquivo_atual.data_upload %}
+                                        {{ arquivo_atual.data_upload.strftime('%d/%m/%Y %H:%M') }}
+                                    {% else %}
+                                        Aguarda processamento
+                                    {% endif %}
+                                </p>
+                            </div>
+                            <button id="openUploadModalBtn" class="{{ theme.buttons.primary }} px-6 py-3 rounded-full text-sm font-semibold tracking-wide uppercase shadow-lg shadow-blue-500/20 transition-transform duration-300 hover:-translate-y-0.5">
+                                Importar arquivo
+                            </button>
+                        </div>
+                    </div>
+                </header>
+
+                <section class="grid lg:grid-cols-[2fr,1fr] gap-6">
+                    <div class="glass-panel {{ theme.modal }} border border-white/5 rounded-3xl p-6 md:p-7 shadow-xl shadow-blue-500/10">
+                        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+                            <div>
+                                <h2 class="text-2xl font-semibold tracking-tight">Tabela comparativa</h2>
+                                <p id="tableSubtitle" class="text-sm text-white/60 mt-1">
+                                    {% if processed_data %}
+                                        Analise a evolucao dos indicadores.
+                                    {% else %}
+                                        Selecione um arquivo CSV ou XLSX para liberar a visualizacao.
+                                    {% endif %}
+                                </p>
+                            </div>
+                            <button id="createChartBtn" class="hidden {{ theme.buttons.secondary }} px-5 py-2.5 rounded-full text-sm font-semibold tracking-wide uppercase transition-transform duration-300 hover:-translate-y-0.5">
+                                Criar grafico
+                            </button>
+                        </div>
+
+                        <div id="tableEmptyState" class="border border-dashed border-white/10 rounded-2xl p-10 text-center space-y-4 {% if processed_data %}hidden{% endif %}">
+                            <div class="w-12 h-12 mx-auto rounded-full border border-white/15 flex items-center justify-center text-white/50">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m6-6H6" />
+                                </svg>
+                            </div>
+                            <h3 class="text-lg font-semibold">Importe o comparativo padrao</h3>
+                            <p class="text-sm text-white/60 max-w-md mx-auto">
+                                Utilize o modelo de arquivo fornecido para liberar a leitura dos dados e construir a base dos graficos.
+                            </p>
+                            <div class="flex flex-col sm:flex-row gap-3 justify-center mt-2">
+                                <button class="{{ theme.buttons.primary }} px-5 py-2.5 rounded-full text-sm uppercase tracking-wide" id="emptyStateUploadBtn">
+                                    Selecionar arquivo
+                                </button>
+                                <a href="/static/modelos/comparativo_base.csv" class="{{ theme.buttons.secondary }} px-5 py-2.5 rounded-full text-sm uppercase tracking-wide border border-white/10" download>
+                                    Baixar modelo
+                                </a>
                             </div>
                         </div>
+
+                        <div id="tableContainer" class="overflow-x-auto rounded-2xl border border-white/5 {% if not processed_data %}hidden{% endif %}">
+                            <table class="min-w-full divide-y divide-white/5">
+                                <thead class="bg-white/5 uppercase tracking-[0.2em] text-[11px] text-white/60">
+                                    <tr>
+                                        <th scope="col" class="px-4 py-3 text-left">Indicador</th>
+                                        <th scope="col" class="px-4 py-3 text-right" id="headPeriodo1">Periodo 1</th>
+                                        <th scope="col" class="px-4 py-3 text-right" id="headPeriodo2">Periodo 2</th>
+                                        <th scope="col" class="px-4 py-3 text-right">Diferenca absoluta</th>
+                                        <th scope="col" class="px-4 py-3 text-right">Diferenca %</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="comparisonBody" class="divide-y divide-white/5"></tbody>
+                            </table>
+                        </div>
                     </div>
-                </div>
+
+                        <div id="paginationWrapper" class="mt-6 hidden items-center justify-between text-xs uppercase tracking-widest text-white/60">
+                            <span id="paginationInfo" class="flex-1"></span>
+                            <div class="flex items-center gap-3">
+                                <button id="prevPageBtn" class="px-4 py-2 rounded-full border border-white/15 bg-white/5 hover:border-white/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">Anterior</button>
+                                <button id="nextPageBtn" class="px-4 py-2 rounded-full border border-white/15 bg-white/5 hover:border-white/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">Próximo</button>
+                            </div>
+                        </div>
+
+                    <aside class="space-y-6">
+                        <div class="glass-panel {{ theme.modal }} border border-white/5 rounded-3xl p-6 shadow-lg shadow-blue-500/10">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-lg font-semibold tracking-tight">Uploads recentes</h3>
+                                <button id="refreshHistoryBtn" class="text-xs font-semibold uppercase tracking-wide text-white/60 hover:text-white/90 transition-colors">
+                                    Atualizar
+                                </button>
+                            </div>
+                            <ul id="historyList" class="space-y-4 text-sm text-white/70">
+                                <li class="text-white/50 text-xs uppercase tracking-wide">
+                                    {% if not arquivo_atual %}
+                                        Nenhum upload realizado ate o momento.
+                                    {% else %}
+                                        Sincronizando registros...
+                                    {% endif %}
+                                </li>
+                            </ul>
+                        </div>
+
+                        <div class="glass-panel {{ theme.modal }} border border-white/5 rounded-3xl p-6 shadow-lg shadow-blue-500/10">
+                            <h3 class="text-lg font-semibold tracking-tight mb-4">Como funciona</h3>
+                            <ul class="space-y-3 text-sm text-white/65 leading-relaxed">
+                                <li class="flex gap-3">
+                                    <span class="h-2 w-2 mt-2 rounded-full bg-blue-400"></span>
+                                    <span>Envie arquivos CSV ou XLSX com as colunas do modelo comparativo.</span>
+                                </li>
+                                <li class="flex gap-3">
+                                    <span class="h-2 w-2 mt-2 rounded-full bg-emerald-400"></span>
+                                    <span>Calculamos automaticamente as diferencas absoluta e percentual.</span>
+                                </li>
+                                <li class="flex gap-3">
+                                    <span class="h-2 w-2 mt-2 rounded-full bg-pink-400"></span>
+                                    <span>Os dados validados ficarao prontos para uso nos graficos da proxima etapa.</span>
+                                </li>
+                            </ul>
+                        </div>
+                    </aside>
+                </section>
             </div>
         </main>
     </div>
+    <!-- Upload Modal -->
+    <div id="uploadModal" class="fixed inset-0 hidden z-50 items-center justify-center">
+        <div class="absolute inset-0 bg-slate-900/70 backdrop-blur-xl"></div>
+        <div class="relative glass-panel {{ theme.modal }} border border-white/10 rounded-3xl w-full max-w-2xl mx-auto p-8 shadow-2xl shadow-blue-600/20 scale-in">
+            <div class="flex items-start justify-between gap-4 mb-6">
+                <div>
+                    <h2 class="text-2xl font-semibold tracking-tight">Importar arquivo comparativo</h2>
+                    <p class="text-sm text-white/60 mt-1">Somente arquivos CSV ou XLSX com o layout padrao serao aceitos.</p>
+                </div>
+                <button id="closeUploadModalBtn" class="w-10 h-10 rounded-full border border-white/10 hover:border-white/30 flex items-center justify-center transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
 
+            <form id="uploadForm" class="space-y-6" enctype="multipart/form-data">
+                <label class="relative flex flex-col items-center justify-center gap-4 border-2 border-dashed border-white/15 rounded-3xl py-10 cursor-pointer hover:border-white/35 transition-colors pulse-border">
+                    <input id="fileInput" name="arquivo" type="file" accept=".csv,.xlsx" class="sr-only">
+                    <div class="w-14 h-14 rounded-full border border-white/10 flex items-center justify-center bg-white/5">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 16V4m0 12l-4-4m4 4l4-4M6 20h12" />
+                        </svg>
+                    </div>
+                    <div class="text-center space-y-1">
+                        <p id="selectedFileName" class="text-sm font-semibold uppercase tracking-wide">Clique para selecionar</p>
+                        <p class="text-xs text-white/50">Limite recomendado: 10 MB • Extensoes: CSV, XLSX</p>
+                    </div>
+                </label>
+
+                <div id="uploadProgress" class="hidden">
+                    <div class="flex items-center justify-between mb-2 text-xs text-white/60 uppercase tracking-widest">
+                        <span>Status do upload</span>
+                        <span id="uploadProgressValue">0%</span>
+                    </div>
+                    <div class="h-3 rounded-full bg-white/10 overflow-hidden">
+                        <div id="uploadProgressBar" class="h-full bg-gradient-to-r from-blue-500 via-purple-500 to-cyan-400 transition-all duration-300" style="width: 0%;"></div>
+                    </div>
+                </div>
+
+                <div class="flex flex-col sm:flex-row gap-3 justify-end">
+                    <button type="button" class="{{ theme.buttons.secondary }} px-5 py-2.5 rounded-full text-sm uppercase tracking-wide" id="cancelUploadBtn">
+                        Cancelar
+                    </button>
+                    <button type="submit" class="{{ theme.buttons.primary }} px-5 py-2.5 rounded-full text-sm uppercase tracking-wide flex items-center justify-center gap-2">
+                        <span id="uploadSubmitText">Processar arquivo</span>
+                        <span id="uploadSpinner" class="hidden w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                    </button>
+                </div>
+
+                <p id="uploadFeedback" class="text-sm text-center text-white/70"></p>
+            </form>
+        </div>
+    </div>
+
+    <!-- Grafico Modal -->
+    <div id="graphModal" class="fixed inset-0 hidden z-50 items-center justify-center">
+        <div class="absolute inset-0 bg-slate-900/70 backdrop-blur-xl"></div>
+        <div class="relative glass-panel {{ theme.modal }} border border-white/10 rounded-3xl w-full max-w-xl mx-auto p-8 shadow-2xl shadow-blue-600/20 scale-in">
+            <div class="flex items-start justify-between gap-4 mb-6">
+                <div>
+                    <h2 class="text-2xl font-semibold tracking-tight">Selecionar indicador</h2>
+                    <p class="text-sm text-white/60 mt-1">Escolha um indicador para utilizar na proxima etapa de graficos.</p>
+                </div>
+                <button id="closeGraphModalBtn" class="w-10 h-10 rounded-full border border-white/10 hover:border-white/30 flex items-center justify-center transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <div class="space-y-4">
+                <div>
+                    <label for="indicatorSelect" class="text-xs uppercase tracking-widest text-white/50">Indicador</label>
+                    <select id="indicatorSelect" class="mt-2 w-full rounded-2xl px-4 py-3 bg-white/5 border border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/60">
+                        <option value="">Selecione um indicador</option>
+                    </select>
+                </div>
+
+                <div id="graphDataCard" class="hidden border border-white/10 rounded-2xl p-5 space-y-3 bg-white/5">
+                    <h3 class="text-sm uppercase tracking-[0.2em] text-white/60">Dados disponiveis</h3>
+                    <ul class="grid grid-cols-2 gap-3 text-sm text-white/80" id="graphDataList"></ul>
+                </div>
+
+                <div class="flex justify-end gap-3 pt-2">
+                    <button id="closeGraphModalSecondaryBtn" class="{{ theme.buttons.secondary }} px-5 py-2.5 rounded-full text-sm uppercase tracking-wide">Cancelar</button>
+                    <button id="confirmGraphBtn" class="{{ theme.buttons.primary }} px-5 py-2.5 rounded-full text-sm uppercase tracking-wide">Continuar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toastContainer" class="fixed bottom-6 right-6 z-[60] space-y-3"></div>
     <script>
-        // --- Modal Functions ---
-        function openModal(modalId) {
-            const modal = document.getElementById(modalId);
-            if (modal) modal.classList.remove('hidden');
+        const workflowId = {{ workflow.id }};
+        const uploadEndpoint = `/api/workflows/${workflowId}/arquivos`;
+        const comparativoEndpoint = `/api/workflows/${workflowId}/comparativo`;
+        const historicoEndpoint = `/api/workflows/${workflowId}/arquivos`;
+        const initialComparativo = {{ processed_data | tojson | safe if processed_data else 'null' }};
+        const initialArquivo = {{ arquivo_atual.to_dict() | tojson | safe if arquivo_atual else 'null' }};
+
+        let currentData = initialComparativo;
+        let currentArquivo = initialArquivo;
+        let fakeProgressInterval = null;
+        let currentPage = 1;
+        const rowsPerPage = 10;
+
+        function openUploadModal() {
+            document.getElementById('uploadModal').classList.remove('hidden');
+            document.getElementById('uploadModal').classList.add('flex');
+            resetUploadFeedback();
         }
 
-        function closeModal(modalId) {
-            const modal = document.getElementById(modalId);
-            if (modal) modal.classList.add('hidden');
+        function closeUploadModal() {
+            const modal = document.getElementById('uploadModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            resetUploadForm();
         }
 
-        // --- Authentication Functions ---
-        function logout() {
-            fetch('/logout')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.message) {
-                        window.location.href = '/';
-                    }
+        function openGraphModal() {
+            if (!currentData || !Array.isArray(currentData.indicadores) || currentData.indicadores.length === 0) {
+                showToast('Importe um arquivo para liberar a selecao de indicadores.', 'error');
+                return;
+            }
+            populateIndicatorSelect();
+            document.getElementById('graphModal').classList.remove('hidden');
+            document.getElementById('graphModal').classList.add('flex');
+        }
+
+        function closeGraphModal() {
+            const modal = document.getElementById('graphModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            document.getElementById('indicatorSelect').value = '';
+            document.getElementById('graphDataCard').classList.add('hidden');
+            document.getElementById('graphDataList').innerHTML = '';
+        }
+
+        function resetUploadForm() {
+            document.getElementById('uploadForm').reset();
+            document.getElementById('selectedFileName').textContent = 'Clique para selecionar';
+            document.getElementById('uploadFeedback').textContent = '';
+            document.getElementById('uploadProgress').classList.add('hidden');
+            document.getElementById('uploadProgressBar').style.width = '0%';
+            document.getElementById('uploadProgressValue').textContent = '0%';
+            document.getElementById('uploadSpinner').classList.add('hidden');
+            document.getElementById('uploadSubmitText').textContent = 'Processar arquivo';
+        }
+
+        function resetUploadFeedback() {
+            document.getElementById('uploadFeedback').textContent = '';
+            document.getElementById('uploadFeedback').className = 'text-sm text-center text-white/70';
+        }
+
+        function startFakeProgress() {
+            const progressBar = document.getElementById('uploadProgressBar');
+            const progressValue = document.getElementById('uploadProgressValue');
+            let progress = 10;
+            progressBar.style.width = `${progress}%`;
+            progressValue.textContent = `${progress}%`;
+
+            fakeProgressInterval = setInterval(() => {
+                progress += Math.random() * 15;
+                if (progress >= 90) {
+                    progress = 90;
+                    clearInterval(fakeProgressInterval);
+                }
+                progressBar.style.width = `${progress}%`;
+                progressValue.textContent = `${Math.round(progress)}%`;
+            }, 350);
+        }
+
+        function finishFakeProgress() {
+            if (fakeProgressInterval) {
+                clearInterval(fakeProgressInterval);
+                fakeProgressInterval = null;
+            }
+            const progressBar = document.getElementById('uploadProgressBar');
+            const progressValue = document.getElementById('uploadProgressValue');
+            progressBar.style.width = '100%';
+            progressValue.textContent = '100%';
+        }
+
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `flex items-center gap-3 px-5 py-3 rounded-2xl shadow-xl text-sm tracking-wide uppercase ${type === 'success' ? '{{ theme.toast.success }}' : '{{ theme.toast.error }}'}`;
+            toast.innerHTML = `
+                <span class="w-2 h-2 rounded-full ${type === 'success' ? 'bg-emerald-300' : 'bg-rose-300'}"></span>
+                <span>${message}</span>
+            `;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(10px)';
+                setTimeout(() => toast.remove(), 400);
+            }, 3600);
+        }
+
+        function renderTable(data) {
+            const tableContainer = document.getElementById('tableContainer');
+            const emptyState = document.getElementById('tableEmptyState');
+            const createChartBtn = document.getElementById('createChartBtn');
+            const headPeriodo1 = document.getElementById('headPeriodo1');
+            const headPeriodo2 = document.getElementById('headPeriodo2');
+            const tableSubtitle = document.getElementById('tableSubtitle');
+            const tbody = document.getElementById('comparisonBody');
+
+            if (!data || !Array.isArray(data.indicadores) || data.indicadores.length === 0) {
+                tableContainer.classList.add('hidden');
+                emptyState.classList.remove('hidden');
+                createChartBtn.classList.add('hidden');
+                tableSubtitle.textContent = 'Selecione um arquivo CSV ou XLSX para liberar a visualizacao.';
+                tbody.innerHTML = '';
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+            tableContainer.classList.remove('hidden');
+            createChartBtn.classList.remove('hidden');
+            tableSubtitle.textContent = 'Analise a evolucao dos indicadores.';
+
+            headPeriodo1.textContent = data.periodo_1_label || 'Periodo 1';
+            headPeriodo2.textContent = data.periodo_2_label || 'Periodo 2';
+
+            tbody.innerHTML = '';
+            data.indicadores.forEach((item, index) => {
+                const row = document.createElement('tr');
+                row.className = 'fade-in-up';
+                row.style.animationDelay = `${index * 60}ms`;
+
+                const tendenciaClass = item.tendencia === 'up'
+                    ? 'text-emerald-300 bg-emerald-500/10'
+                    : item.tendencia === 'down'
+                        ? 'text-rose-300 bg-rose-500/10'
+                        : 'text-white/60 bg-white/5';
+
+                row.innerHTML = `
+                    <td class="px-4 py-4 text-sm font-medium text-white/80">${item.indicador}</td>
+                    <td class="px-4 py-4 text-right text-sm text-white/70">${formatNumber(item.valor_periodo_1)}</td>
+                    <td class="px-4 py-4 text-right text-sm text-white/70">${formatNumber(item.valor_periodo_2)}</td>
+                    <td class="px-4 py-4 text-right">
+                        <span class="inline-flex px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide ${tendenciaClass}">
+                            ${formatSignedNumber(item.diferenca_absoluta)}
+                        </span>
+                    </td>
+                    <td class="px-4 py-4 text-right text-sm text-white/70">${formatPercent(item.diferenca_percentual)}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function formatNumber(value) {
+            if (value === null || value === undefined || Number.isNaN(value)) {
+                return '—';
+            }
+            return new Intl.NumberFormat('pt-BR', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            }).format(value);
+        }
+
+        function formatSignedNumber(value) {
+            if (value === null || value === undefined || Number.isNaN(value)) {
+                return '—';
+            }
+            const formatted = formatNumber(value);
+            if (value > 0) {
+                return `+${formatted}`;
+            }
+            return formatted;
+        }
+
+        function formatPercent(value) {
+            if (value === null || value === undefined || Number.isNaN(value)) {
+                return '—';
+            }
+            return `${formatNumber(value)}%`;
+        }
+
+        async function fetchComparativo() {
+            try {
+                const response = await fetch(comparativoEndpoint);
+                if (!response.ok) {
+                    throw new Error('Falha ao consultar os dados.');
+                }
+                const payload = await response.json();
+                currentData = payload.dados;
+                currentArquivo = payload.arquivo;
+                updateUploadInfo();
+                renderTable(currentData);
+            } catch (error) {
+                console.error(error);
+                showToast('Nao foi possivel atualizar o comparativo.', 'error');
+            }
+        }
+
+        async function fetchHistorico() {
+            try {
+                const response = await fetch(historicoEndpoint);
+                if (!response.ok) {
+                    throw new Error('Falha ao consultar historico.');
+                }
+                const lista = await response.json();
+                renderHistorico(lista);
+            } catch (error) {
+                console.error(error);
+                showToast('Nao foi possivel carregar o historico.', 'error');
+            }
+        }
+
+        function renderHistorico(itens) {
+            const historyList = document.getElementById('historyList');
+            historyList.innerHTML = '';
+
+            if (!Array.isArray(itens) || itens.length === 0) {
+                const li = document.createElement('li');
+                li.className = 'text-white/50 text-xs uppercase tracking-wide';
+                li.textContent = 'Nenhum upload realizado ate o momento.';
+                historyList.appendChild(li);
+                return;
+            }
+
+            itens.slice(0, 5).forEach((item) => {
+                const li = document.createElement('li');
+                li.className = 'glass-panel border border-white/10 rounded-2xl px-4 py-3 flex flex-col gap-1 text-sm';
+                li.innerHTML = `
+                    <span class="flex items-center justify-between text-white/80">
+                        <span class="font-medium truncate">${item.nome_arquivo}</span>
+                        <span class="text-xs text-white/40 uppercase tracking-wide">${formatDate(item.data_upload)}</span>
+                    </span>
+                    <span class="text-xs text-white/50">${item.dados_extraidos?.total_indicadores || 0} indicadores processados</span>
+                `;
+                historyList.appendChild(li);
+            });
+        }
+
+        function formatDate(timestamp) {
+            if (!timestamp) return '—';
+            const date = new Date(timestamp);
+            if (Number.isNaN(date.getTime())) return '—';
+            return date.toLocaleString('pt-BR', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        function updateUploadInfo() {
+            const nameEl = document.getElementById('lastUploadName');
+            const timeEl = document.getElementById('lastUploadTime');
+            if (!currentArquivo) {
+                nameEl.textContent = 'Nenhum arquivo importado';
+                timeEl.textContent = 'Aguarda processamento';
+                return;
+            }
+            nameEl.textContent = currentArquivo.nome_arquivo;
+            timeEl.textContent = formatDate(currentArquivo.data_upload);
+        }
+
+        function populateIndicatorSelect() {
+            const select = document.getElementById('indicatorSelect');
+            select.innerHTML = '<option value="">Selecione um indicador</option>';
+            currentData.indicadores.forEach((item, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                option.textContent = item.indicador;
+                select.appendChild(option);
+            });
+        }
+
+        function handleIndicatorChange(event) {
+            const index = Number(event.target.value);
+            const card = document.getElementById('graphDataCard');
+            const list = document.getElementById('graphDataList');
+            if (Number.isNaN(index) || !currentData || !currentData.indicadores[index]) {
+                card.classList.add('hidden');
+                list.innerHTML = '';
+                return;
+            }
+
+            const item = currentData.indicadores[index];
+            card.classList.remove('hidden');
+            list.innerHTML = `
+                <li>
+                    <p class="text-xs uppercase tracking-widest text-white/50">Periodo 1</p>
+                    <p class="text-sm font-semibold">${formatNumber(item.valor_periodo_1)}</p>
+                </li>
+                <li>
+                    <p class="text-xs uppercase tracking-widest text-white/50">Periodo 2</p>
+                    <p class="text-sm font-semibold">${formatNumber(item.valor_periodo_2)}</p>
+                </li>
+                <li>
+                    <p class="text-xs uppercase tracking-widest text-white/50">Diferenca</p>
+                    <p class="text-sm font-semibold">${formatSignedNumber(item.diferenca_absoluta)}</p>
+                </li>
+                <li>
+                    <p class="text-xs uppercase tracking-widest text-white/50">Diferenca %</p>
+                    <p class="text-sm font-semibold">${formatPercent(item.diferenca_percentual)}</p>
+                </li>
+            `;
+        }
+
+        async function handleUpload(event) {
+            event.preventDefault();
+            const fileInput = document.getElementById('fileInput');
+            const feedback = document.getElementById('uploadFeedback');
+            const progressWrapper = document.getElementById('uploadProgress');
+            const spinner = document.getElementById('uploadSpinner');
+            const submitText = document.getElementById('uploadSubmitText');
+
+            if (!fileInput.files || fileInput.files.length === 0) {
+                feedback.textContent = 'Selecione um arquivo CSV ou XLSX.';
+                feedback.className = 'text-sm text-center text-rose-300';
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('arquivo', fileInput.files[0]);
+
+            progressWrapper.classList.remove('hidden');
+            spinner.classList.remove('hidden');
+            submitText.textContent = 'Processando...';
+            resetUploadFeedback();
+            startFakeProgress();
+
+            try {
+                const response = await fetch(uploadEndpoint, {
+                    method: 'POST',
+                    body: formData
                 });
+
+                finishFakeProgress();
+                spinner.classList.add('hidden');
+                submitText.textContent = 'Processar arquivo';
+
+                const payload = await response.json();
+                if (!response.ok) {
+                    feedback.textContent = payload.error || 'Falha no processamento. Confirme o layout do arquivo.';
+                    feedback.className = 'text-sm text-center text-rose-300';
+                    return;
+                }
+
+                currentData = payload.dados_processados;
+                currentArquivo = payload.arquivo;
+                renderTable(currentData);
+                updateUploadInfo();
+                refreshData();
+                closeUploadModal();
+                showToast(payload.message || 'Arquivo processado com sucesso.', 'success');
+            } catch (error) {
+                console.error(error);
+                feedback.textContent = 'Ocorreu um erro inesperado. Tente novamente.';
+                feedback.className = 'text-sm text-center text-rose-300';
+            } finally {
+                if (fakeProgressInterval) {
+                    clearInterval(fakeProgressInterval);
+                    fakeProgressInterval = null;
+                }
+            }
         }
 
-        // --- Theme Functions ---
+        function prepareEmptyStateTrigger() {
+            const trigger = document.getElementById('emptyStateUploadBtn');
+            if (trigger) {
+                trigger.addEventListener('click', openUploadModal);
+            }
+        }
+
+        function refreshData() {
+            fetchComparativo();
+            fetchHistorico();
+        }
+
+        function initEventListeners() {
+            document.getElementById('openUploadModalBtn').addEventListener('click', openUploadModal);
+            document.getElementById('closeUploadModalBtn').addEventListener('click', closeUploadModal);
+            document.getElementById('cancelUploadBtn').addEventListener('click', closeUploadModal);
+            document.getElementById('uploadForm').addEventListener('submit', handleUpload);
+            document.getElementById('fileInput').addEventListener('change', (event) => {
+                if (event.target.files && event.target.files[0]) {
+                    document.getElementById('selectedFileName').textContent = event.target.files[0].name;
+                }
+            });
+            document.getElementById('createChartBtn').addEventListener('click', openGraphModal);
+            document.getElementById('closeGraphModalBtn').addEventListener('click', closeGraphModal);
+            document.getElementById('closeGraphModalSecondaryBtn').addEventListener('click', closeGraphModal);
+            document.getElementById('graphModal').addEventListener('click', (event) => {
+                if (event.target.id === 'graphModal') {
+                    closeGraphModal();
+                }
+            });
+            document.getElementById('uploadModal').addEventListener('click', (event) => {
+                if (event.target.id === 'uploadModal') {
+                    closeUploadModal();
+                }
+            });
+            document.getElementById('indicatorSelect').addEventListener('change', handleIndicatorChange);
+            document.getElementById('confirmGraphBtn').addEventListener('click', () => {
+                const select = document.getElementById('indicatorSelect');
+                if (!select.value) {
+                    showToast('Escolha um indicador para continuar.', 'error');
+                    return;
+                }
+                const indicador = currentData.indicadores[Number(select.value)];
+                console.log('Indicador selecionado para etapa de graficos:', indicador);
+                showToast('Dados prontos para a etapa de graficos.', 'success');
+                closeGraphModal();
+            });
+            document.getElementById('refreshHistoryBtn').addEventListener('click', refreshData);
+            prepareEmptyStateTrigger();
+        }
+
+        function bootstrapView() {
+            if (currentData) {
+                renderTable(currentData);
+            } else {
+                renderTable(null);
+            }
+
+            if (currentArquivo) {
+                updateUploadInfo();
+            }
+
+            fetchHistorico();
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initEventListeners();
+            bootstrapView();
+            createThemeMenu();
+
+            document.addEventListener('click', function(event) {
+                const menu = document.getElementById('themeMenu');
+                if (!menu || menu.classList.contains('hidden')) return;
+                const isThemeButton = event.target.closest('button[title="Alterar Tema"]');
+                if (!isThemeButton && !menu.contains(event.target)) {
+                    menu.classList.add('hidden');
+                }
+            });
+        });
+
         function changeTheme(theme) {
             fetch(`/theme/${theme}`, {
                 method: 'POST',
@@ -251,20 +897,6 @@
                 menu.classList.add('hidden');
             }
         }
-
-        document.addEventListener('DOMContentLoaded', function() {
-            createThemeMenu();
-
-            document.addEventListener('click', function(event) {
-                const menu = document.getElementById('themeMenu');
-                if (!menu || menu.classList.contains('hidden')) return;
-
-                const isThemeButton = event.target.closest('button[title="Alterar Tema"]');
-                if (!isThemeButton && !menu.contains(event.target)) {
-                    menu.classList.add('hidden');
-                }
-            });
-        });
 
         function openUserProfile() {
             console.log('Open user profile');

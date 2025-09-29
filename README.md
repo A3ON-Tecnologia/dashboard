@@ -1,133 +1,91 @@
-# Dashboard Futurista com Temas Dinâmicos
+# Dashboard Futurista com Temas Dinamicos
 
-Sistema moderno de dashboard com autenticação e suporte a múltiplos temas visuais, desenvolvido com Flask e TailwindCSS.
+Aplicacao Flask que oferece um dashboard moderno com autenticacao, troca de temas e integracao com MySQL.
 
-## Tecnologias Utilizadas
+## Tecnologias
 
-- **Backend**: Python + Flask
-- **Frontend**: HTML + TailwindCSS + JavaScript
-- **Banco de Dados**: MySQL
-- **Autenticação**: Flask-Login + Bcrypt
-- **Temas**: Sistema próprio de temas com Tailwind
+- Flask
+- TailwindCSS
+- MySQL
 
-## Funcionalidades
+## Requisitos
 
-- Sistema de autenticação completo (login/cadastro)
-- Temas visuais dinâmicos:
-  - Dark (fundo escuro, cores sóbrias)
-  - Light (fundo claro, cores suaves)
-  - Neon (cores vibrantes, efeito glow)
-  - Futurist (azul/roxo com gradientes)
-  - Classic (estilo clean corporativo)
-- Mudança de tema em tempo real
-- Persistência do tema escolhido
-- Interface responsiva
+- Python 3.10.x (64 bits)
+- Pip na mesma versao do Python
+- Servidor MySQL 8.x acessivel localmente
 
-## Configuração do Ambiente
+## Como preparar o ambiente
 
-1. Clone o repositório
-2. Crie um ambiente virtual:
+1. **Clonar o repositorio**
    ```bash
-   python -m venv venv
-   .\venv\Scripts\activate  # Windows
-   source venv/bin/activate  # Linux/Mac
+   git clone <URL_DO_REPO>
+   cd dashboards
    ```
-
-3. Instale as dependências:
+2. **Criar e ativar um ambiente virtual**
+   - Windows (PowerShell):
+     ```powershell
+     python -m venv venv
+     .\\venv\\Scripts\\Activate.ps1
+     ```
+   - Linux/macOS:
+     ```bash
+     python3 -m venv venv
+     source venv/bin/activate
+     ```
+3. **Instalar as dependencias Python**
    ```bash
+   pip install --upgrade pip
    pip install -r requirements.txt
    ```
-
-4. Configure o banco de dados:
-   - Crie um banco MySQL chamado `cadastro_empresas`
-   - Usuário: root
-   - Sem senha
-   
-5. Configure o arquivo .env:
+4. **Configurar o banco MySQL**
+   ```sql
+   CREATE DATABASE dashboards CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
    ```
+   Ajuste usuario e senha conforme a sua instalacao.
+5. **Criar o arquivo `.env`** (copie do exemplo caso exista):
+   ```bash
+   cp .env.example .env  # Linux/macOS
+   copy .env.example .env  # Windows
+   ```
+   Edite o arquivo `.env` para refletir suas credenciais:
+   ```ini
    FLASK_APP=run.py
    FLASK_ENV=development
-   SECRET_KEY=sua_chave_secreta
-   DATABASE_URL=mysql://root:@localhost/dashboards
+   SECRET_KEY=uma_chave_segura
+   DATABASE_URL=mysql+mysqlconnector://<usuario>:<senha>@localhost/dashboards
    ```
-
-## Executando o Projeto
-
-1. Ative o ambiente virtual:
+6. **Aplicar as migracoes**
    ```bash
-   .\venv\Scripts\activate  # Windows
-   source venv/bin/activate  # Linux/Mac
+   flask db upgrade
+   ```
+   No Windows PowerShell:
+   ```powershell
+   $env:FLASK_APP = "run.py"
+   flask db upgrade
    ```
 
-2. Execute a aplicação:
+## Executando na porta 8000
+
+1. Certifique-se de que o ambiente virtual esta ativo e o arquivo `.env` configurado.
+2. Inicie a aplicacao diretamente com o script principal, que ja define a porta 8000:
    ```bash
    python run.py
    ```
+3. Acesse o dashboard em `http://localhost:8000`.
 
-3. Acesse http://localhost:5000 no navegador
-
-## Uso do Sistema
-
-1. **Página Inicial**
-   - Acesse a home page
-   - Escolha entre Login ou Cadastro
-
-2. **Cadastro**
-   - Clique em "Cadastro"
-   - Preencha nome, email e senha
-   - Submeta o formulário
-
-3. **Login**
-   - Clique em "Login"
-   - Insira email e senha
-   - Acesse o sistema
-
-4. **Dashboard**
-   - Após login, você será redirecionado ao dashboard
-   - Use o dropdown de temas na navbar para mudar o visual
-   - O tema escolhido será salvo para futuras sessões
-
-5. **Mudança de Tema**
-   - Clique no botão "Temas" na navbar
-   - Selecione um dos 5 temas disponíveis
-   - A mudança é instantânea e persiste entre sessões
-
-6. **Logout**
-   - Clique em "Sair" na navbar
-   - Você será redirecionado para a home
-
-## Estrutura do Projeto
-
-```
-/project_root
-│── /app
-│   │── __init__.py
-│   │── /models
-│   │   └── user.py
-│   │── /routes
-│   │   │── auth.py
-│   │   └── main.py
-│   │── /services
-│   │   │── auth_service.py
-│   │   └── theme_service.py
-│   │── /themes
-│   │   └── theme_config.py
-│   │── /templates
-│   │   │── base.html
-│   │   │── home.html
-│   │   └── dashboard.html
-│   └── /static
-│── config.py
-│── run.py
-│── requirements.txt
-│── .env.example
-└── README.md
+Se preferir usar `flask run`, defina a porta manualmente:
+```bash
+export FLASK_APP=run.py      # Linux/macOS
+set FLASK_APP=run.py         # Windows CMD
+$env:FLASK_APP = "run.py"    # Windows PowerShell
+flask run --port 8000
 ```
 
-## Próximas Etapas
+## Notas adicionais
 
-- Implementação dos dashboards
-- Importação de dados CSV
-- Gráficos interativos
-- Relatórios personalizados
-- Mais temas visuais
+- Utilize `flask db migrate` e `flask db upgrade` sempre que criar novos modelos.
+- Para criar um usuario administrador execute:
+  ```bash
+  flask create-admin "Nome" email@example.com senha123
+  ```
+- Ative o ambiente virtual sempre que for trabalhar no projeto.
