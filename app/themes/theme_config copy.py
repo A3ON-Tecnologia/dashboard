@@ -9,10 +9,14 @@
         'modal': 'bg-gray-800',
         'accent': 'text-blue-400',
         'card_border': {
+            'balancete': 'border-blue-500',
+            'analise_jp': 'border-emerald-500',
             'comparativo': 'border-blue-500',
             'evolucao': 'border-emerald-500'
         },
         'badge': {
+            'balancete': 'bg-blue-500/20 text-blue-200 border border-blue-500/40',
+            'analise_jp': 'bg-emerald-500/20 text-emerald-200 border border-emerald-500/40',
             'comparativo': 'bg-blue-500/20 text-blue-200 border border-blue-500/40',
             'evolucao': 'bg-emerald-500/20 text-emerald-200 border border-emerald-500/40'
         },
@@ -45,10 +49,14 @@
         'modal': 'bg-white',
         'accent': 'text-blue-600',
         'card_border': {
+            'balancete': 'border-blue-400',
+            'analise_jp': 'border-emerald-400',
             'comparativo': 'border-blue-400',
             'evolucao': 'border-emerald-400'
         },
         'badge': {
+            'balancete': 'bg-blue-100 text-blue-800 border border-blue-200',
+            'analise_jp': 'bg-green-100 text-green-800 border border-green-200',
             'comparativo': 'bg-blue-100 text-blue-800 border border-blue-200',
             'evolucao': 'bg-green-100 text-green-800 border border-green-200'
         },
@@ -81,10 +89,14 @@
         'modal': 'bg-gray-900 border border-purple-500',
         'accent': 'text-purple-400',
         'card_border': {
+            'balancete': 'border-purple-500',
+            'analise_jp': 'border-emerald-500',
             'comparativo': 'border-purple-500',
             'evolucao': 'border-emerald-500'
         },
         'badge': {
+            'balancete': 'bg-purple-500/20 text-purple-200 border border-purple-500/60',
+            'analise_jp': 'bg-emerald-500/20 text-emerald-200 border border-emerald-500/60',
             'comparativo': 'bg-purple-500/20 text-purple-200 border border-purple-500/60',
             'evolucao': 'bg-emerald-500/20 text-emerald-200 border border-emerald-500/60'
         },
@@ -117,10 +129,14 @@
         'modal': 'bg-gray-900/95',
         'accent': 'text-cyan-400',
         'card_border': {
+            'balancete': 'border-blue-500/70',
+            'analise_jp': 'border-emerald-500/70',
             'comparativo': 'border-blue-500/70',
             'evolucao': 'border-emerald-500/70'
         },
         'badge': {
+            'balancete': 'bg-blue-500/20 text-blue-200 border border-blue-500/40',
+            'analise_jp': 'bg-emerald-500/20 text-emerald-200 border border-emerald-500/40',
             'comparativo': 'bg-blue-500/20 text-blue-200 border border-blue-500/40',
             'evolucao': 'bg-emerald-500/20 text-emerald-200 border border-emerald-500/40'
         },

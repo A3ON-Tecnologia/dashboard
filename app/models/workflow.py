@@ -1,5 +1,6 @@
-from app import db
 from datetime import datetime
+
+from app import db
 
 class Workflow(db.Model):
     __tablename__ = 'workflows'
@@ -7,7 +8,7 @@ class Workflow(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nome = db.Column(db.String(255), nullable=False)
     descricao = db.Column(db.Text)
-    tipo = db.Column(db.Enum('comparativo', 'evolucao', name='workflow_tipo'), nullable=False)
+    tipo = db.Column(db.Enum('balancete', 'analise_jp', name='workflow_tipo'), nullable=False)
     usuario_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     data_criacao = db.Column(db.DateTime, default=datetime.utcnow)
     

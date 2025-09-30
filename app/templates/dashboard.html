@@ -66,7 +66,7 @@
                                     <p class="{{ theme.text }} opacity-75 text-sm mb-3">{{ workflow.descricao or 'Sem descrição' }}</p>
                                     <div class="flex items-center space-x-2">
                                         <span class="px-3 py-1 rounded-full text-xs font-medium {{ theme.badge[workflow.tipo] }}">
-                                            {{ workflow.tipo.title() }}
+                                            {{ {'balancete': 'Balancete', 'analise_jp': 'Análise JP'}.get(workflow.tipo, workflow.tipo.replace('_', ' ').title()) }}
                                         </span>
                                         <span class="{{ theme.text }} opacity-50 text-xs">
                                             {{ workflow.data_criacao.strftime('%d/%m/%Y') }}
@@ -192,8 +192,8 @@
                         <label class="block mb-2 {{ theme.text }}">Tipo</label>
                         <select id="workflowTipo" name="tipo" required class="{{ theme.input }} w-full px-4 py-2 rounded-lg">
                             <option value="">Selecione o tipo</option>
-                            <option value="comparativo">Comparativo</option>
-                            <option value="evolucao">Evolução</option>
+                            <option value="balancete">Balancete</option>
+                            <option value="analise_jp">Análise JP</option>
                         </select>
                     </div>
                     <div class="{{ theme.alerts.success }} hidden" id="createSuccess"></div>
@@ -227,8 +227,8 @@
                     <div>
                         <label class="block mb-2 {{ theme.text }}">Tipo</label>
                         <select id="editWorkflowTipo" name="tipo" required class="{{ theme.input }} w-full px-4 py-2 rounded-lg">
-                            <option value="comparativo">Comparativo</option>
-                            <option value="evolucao">Evolução</option>
+                            <option value="balancete">Balancete</option>
+                            <option value="analise_jp">Análise JP</option>
                         </select>
                     </div>
                     <div class="{{ theme.alerts.success }} hidden" id="editSuccess"></div>
