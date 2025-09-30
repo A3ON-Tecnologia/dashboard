@@ -88,11 +88,11 @@
         }
     </style>
 </head>
-<body class="{{ theme.bg }} {{ theme.text }} font-sans min-h-screen">
-    <div class="flex min-h-screen">
+<body class="{{ theme.bg }} {{ theme.text }} font-sans h-screen overflow-hidden">
+    <div class="flex h-full">
         {% include 'partials/sidebar.html' %}
 
-        <main class="flex-1 overflow-y-auto">
+        <main class="flex-1 h-full overflow-y-auto">
             <div class="max-w-7xl mx-auto px-6 md:px-10 py-10 space-y-8">
                 <header class="glass-panel {{ theme.modal }} border border-white/5 rounded-3xl p-8 shadow-2xl shadow-blue-500/10">
                     <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
@@ -320,6 +320,28 @@
         </div>
     </div>
 
+    <!-- Delete Confirm Modal -->
+    <div id="deleteConfirmModal" class="fixed inset-0 hidden z-[70] items-center justify-center">
+        <div class="absolute inset-0 bg-slate-900/70 backdrop-blur-xl"></div>
+        <div class="relative glass-panel {{ theme.modal }} border border-white/10 rounded-3xl w-full max-w-sm mx-auto p-6 space-y-6 shadow-2xl shadow-blue-600/20 scale-in">
+            <div class="flex items-start gap-4">
+                <div class="{{ theme.danger_icon.container }} w-12 h-12 rounded-full flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 {{ theme.danger_icon.icon }}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M12 3l8.66 15H3.34L12 3z" />
+                    </svg>
+                </div>
+                <div class="space-y-2">
+                    <h2 class="text-xl font-semibold tracking-tight">Remover upload</h2>
+                    <p class="text-sm text-white/60">Deseja realmente excluir <span id="deleteConfirmFileName" class="text-white/80 font-medium"></span>? Essa acao removera o arquivo enviado e os dados processados.</p>
+                </div>
+            </div>
+            <div class="flex justify-end gap-3">
+                <button id="cancelDeleteBtn" class="{{ theme.buttons.secondary }} px-4 py-2 rounded-full text-sm uppercase tracking-wide">Cancelar</button>
+                <button id="confirmDeleteBtn" class="{{ theme.buttons.danger }} px-4 py-2 rounded-full text-sm uppercase tracking-wide">Excluir</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Container -->
     <div id="toastContainer" class="fixed bottom-6 right-6 z-[60] space-y-3"></div>
     <script>
@@ -335,6 +357,17 @@
         let fakeProgressInterval = null;
         let currentPage = 1;
         const rowsPerPage = 5;
+        let pendingDelete = null;
+
+        function logout() {
+            fetch('/logout')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.message) {
+                        window.location.href = '/';
+                    }
+                });
+        }
 
         function openUploadModal() {
             document.getElementById('uploadModal').classList.remove('hidden');
@@ -662,29 +695,121 @@
             });
         }
 
-        async function deleteArquivoHistorico(arquivoId, nomeArquivo, triggerButton) {
-            if (!arquivoId) {
+        function openDeleteModal(arquivoId, nomeArquivo, triggerButton) {
+            const modal = document.getElementById('deleteConfirmModal');
+            if (!modal) {
                 return;
             }
 
-            const confirmationMessage = nomeArquivo
-                ? `Deseja excluir o arquivo "${nomeArquivo}"?`
-                : 'Deseja excluir este arquivo?';
+            const fileNameEl = document.getElementById('deleteConfirmFileName');
+            const confirmBtn = document.getElementById('confirmDeleteBtn');
+            const cancelBtn = document.getElementById('cancelDeleteBtn');
 
-            if (!window.confirm(confirmationMessage)) {
-                return;
-            }
+            pendingDelete = {
+                id: arquivoId,
+                name: nomeArquivo || 'este arquivo',
+                button: triggerButton || null,
+                previousLabel: triggerButton ? triggerButton.textContent : null
+            };
 
-            let previousLabel = null;
             if (triggerButton) {
-                previousLabel = triggerButton.textContent;
-                triggerButton.disabled = true;
-                triggerButton.textContent = 'Removendo...';
-                triggerButton.classList.add('opacity-70', 'cursor-not-allowed');
+                triggerButton.blur();
+            }
+
+            if (fileNameEl) {
+                fileNameEl.textContent = pendingDelete.name;
+            }
+
+            if (confirmBtn) {
+                confirmBtn.disabled = false;
+                confirmBtn.textContent = 'Excluir';
+                confirmBtn.classList.remove('opacity-70', 'cursor-not-allowed');
+                confirmBtn.focus();
+            }
+
+            if (cancelBtn) {
+                cancelBtn.disabled = false;
+                cancelBtn.classList.remove('opacity-70', 'cursor-not-allowed');
+            }
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeDeleteModal(resetButton = true) {
+            const modal = document.getElementById('deleteConfirmModal');
+            if (!modal) {
+                pendingDelete = null;
+                return;
+            }
+
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+
+            const fileNameEl = document.getElementById('deleteConfirmFileName');
+            if (fileNameEl) {
+                fileNameEl.textContent = '';
+            }
+
+            const confirmBtn = document.getElementById('confirmDeleteBtn');
+            if (confirmBtn) {
+                confirmBtn.disabled = false;
+                confirmBtn.textContent = 'Excluir';
+                confirmBtn.classList.remove('opacity-70', 'cursor-not-allowed');
+                confirmBtn.focus();
+            }
+
+            const cancelBtn = document.getElementById('cancelDeleteBtn');
+            if (cancelBtn) {
+                cancelBtn.disabled = false;
+                cancelBtn.classList.remove('opacity-70', 'cursor-not-allowed');
+            }
+
+            if (resetButton && pendingDelete && pendingDelete.button) {
+                const originalButton = pendingDelete.button;
+                originalButton.disabled = false;
+                originalButton.classList.remove('opacity-70', 'cursor-not-allowed');
+                if (pendingDelete.previousLabel) {
+                    originalButton.textContent = pendingDelete.previousLabel;
+                } else {
+                    originalButton.textContent = 'Excluir';
+                }
+            }
+
+            pendingDelete = null;
+        }
+
+        async function deleteArquivoHistorico() {
+            if (!pendingDelete || !pendingDelete.id) {
+                closeDeleteModal();
+                showToast('Nenhum arquivo selecionado para exclusao.', 'error');
+                return;
+            }
+
+            const context = { ...pendingDelete };
+            const confirmBtn = document.getElementById('confirmDeleteBtn');
+            const cancelBtn = document.getElementById('cancelDeleteBtn');
+            const confirmPreviousLabel = confirmBtn ? confirmBtn.textContent : null;
+
+            if (context.button) {
+                context.button.disabled = true;
+                context.button.classList.add('opacity-70', 'cursor-not-allowed');
+                context.button.textContent = 'Removendo...';
+            }
+
+            if (confirmBtn) {
+                confirmBtn.disabled = true;
+                confirmBtn.textContent = 'Removendo...';
+                confirmBtn.classList.add('opacity-70', 'cursor-not-allowed');
+            }
+
+            if (cancelBtn) {
+                cancelBtn.disabled = true;
+                cancelBtn.classList.add('opacity-70', 'cursor-not-allowed');
             }
 
             try {
-                const response = await fetch(`${uploadEndpoint}/${arquivoId}`, {
+                const response = await fetch(`${uploadEndpoint}/${context.id}`, {
                     method: 'DELETE'
                 });
                 let payload = {};
@@ -696,17 +821,32 @@
                 if (!response.ok) {
                     throw new Error(payload.error || 'Erro ao excluir arquivo.');
                 }
+
                 showToast(payload.message || 'Arquivo excluido com sucesso.', 'success');
+                closeDeleteModal(false);
                 refreshData();
             } catch (error) {
                 console.error(error);
                 showToast(error.message || 'Nao foi possivel excluir o arquivo.', 'error');
             } finally {
-                if (triggerButton) {
-                    triggerButton.disabled = false;
-                    triggerButton.textContent = previousLabel || 'Excluir';
-                    triggerButton.classList.remove('opacity-70', 'cursor-not-allowed');
+                if (confirmBtn) {
+                    confirmBtn.disabled = false;
+                    confirmBtn.classList.remove('opacity-70', 'cursor-not-allowed');
+                    confirmBtn.textContent = confirmPreviousLabel || 'Excluir';
                 }
+
+                if (cancelBtn) {
+                    cancelBtn.disabled = false;
+                    cancelBtn.classList.remove('opacity-70', 'cursor-not-allowed');
+                }
+
+                if (context.button) {
+                    context.button.disabled = false;
+                    context.button.classList.remove('opacity-70', 'cursor-not-allowed');
+                    context.button.textContent = context.previousLabel || 'Excluir';
+                }
+
+                pendingDelete = null;
             }
         }
 
@@ -932,9 +1072,41 @@
                         return;
                     }
 
-                    deleteArquivoHistorico(arquivoId, nomeArquivo, deleteButton);
+                    openDeleteModal(arquivoId, nomeArquivo, deleteButton);
                 });
             }
+
+            const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+            if (confirmDeleteBtn) {
+                confirmDeleteBtn.addEventListener('click', () => {
+                    deleteArquivoHistorico();
+                });
+            }
+
+            const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
+            if (cancelDeleteBtn) {
+                cancelDeleteBtn.addEventListener('click', () => {
+                    closeDeleteModal();
+                });
+            }
+
+            const deleteModal = document.getElementById('deleteConfirmModal');
+            if (deleteModal) {
+                deleteModal.addEventListener('click', (event) => {
+                    if (event.target.id === 'deleteConfirmModal') {
+                        closeDeleteModal();
+                    }
+                });
+            }
+
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape') {
+                    const modal = document.getElementById('deleteConfirmModal');
+                    if (modal && !modal.classList.contains('hidden')) {
+                        closeDeleteModal();
+                    }
+                }
+            });
 
             document.getElementById('prevPageBtn').addEventListener('click', () => {
                 if (currentPage > 1) {
