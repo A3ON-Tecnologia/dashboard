@@ -108,11 +108,11 @@
                                     <h1 class="text-3xl md:text-4xl font-semibold tracking-tight">{{ workflow.nome }}</h1>
                                 </div>
                                 <span class="px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide {{ theme.badge[workflow.tipo] }}">
-                                    {{ workflow.tipo.title() }}
+                                    {{ {'balancete': 'Balancete', 'analise_jp': 'Análise JP'}.get(workflow.tipo, workflow.tipo.replace('_', ' ').title()) }}
                                 </span>
                             </div>
                             <p class="text-white/70 max-w-3xl leading-relaxed">
-                                {{ workflow.descricao or 'Comparativo entre periodos com indicadores chave.' }}
+                                {{ workflow.descricao or 'Análise de balancete com indicadores chave.' }}
                             </p>
                             <p class="text-xs text-white/40 uppercase tracking-widest">
                                 Criado em {{ workflow.data_criacao.strftime('%d/%m/%Y %H:%M') }}
@@ -148,10 +148,10 @@
                     <div class="glass-panel {{ theme.modal }} border border-white/5 rounded-3xl p-6 md:p-7 shadow-xl shadow-blue-500/10">
                         <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
                             <div>
-                                <h2 class="text-2xl font-semibold tracking-tight">Tabela comparativa</h2>
+                                <h2 class="text-2xl font-semibold tracking-tight">Tabela do balancete</h2>
                                 <p id="tableSubtitle" class="text-sm text-white/60 mt-1">
                                     {% if processed_data %}
-                                        Analise a evolucao dos indicadores.
+                                        Analise os indicadores extraídos do balancete.
                                     {% else %}
                                         Selecione um arquivo CSV ou XLSX para liberar a visualizacao.
                                     {% endif %}
@@ -176,7 +176,7 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m6-6H6" />
                                 </svg>
                             </div>
-                            <h3 class="text-lg font-semibold">Importe o comparativo padrao</h3>
+                            <h3 class="text-lg font-semibold">Importe o balancete padrão</h3>
                             <p class="text-sm text-white/60 max-w-md mx-auto">
                                 Utilize o modelo de arquivo fornecido para liberar a leitura dos dados e construir a base dos graficos.
                             </p>
@@ -234,8 +234,8 @@
         <div class="relative glass-panel {{ theme.modal }} border border-white/10 rounded-3xl w-full max-w-2xl mx-auto p-8 shadow-2xl shadow-blue-600/20 scale-in">
             <div class="flex items-start justify-between gap-4 mb-6">
                 <div>
-                    <h2 class="text-2xl font-semibold tracking-tight">Importar arquivo comparativo</h2>
-                    <p class="text-sm text-white/60 mt-1">Somente arquivos CSV ou XLSX com o layout padrao serao aceitos.</p>
+                    <h2 class="text-2xl font-semibold tracking-tight">Importar balancete</h2>
+                    <p class="text-sm text-white/60 mt-1">Somente arquivos CSV ou XLSX com o layout padrão serão aceitos.</p>
                 </div>
                 <button id="closeUploadModalBtn" class="w-10 h-10 rounded-full border border-white/10 hover:border-white/30 flex items-center justify-center transition-colors">
                     <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
@@ -482,7 +482,7 @@
             emptyState.classList.add('hidden');
             tableContainer.classList.remove('hidden');
             createChartBtn.classList.remove('hidden');
-            tableSubtitle.textContent = 'Analise a evolucao dos indicadores.';
+            tableSubtitle.textContent = 'Analise os indicadores extraídos do balancete.';
 
             headPeriodo1.textContent = data.periodo_1_label || 'Periodo 1';
             headPeriodo2.textContent = data.periodo_2_label || 'Periodo 2';

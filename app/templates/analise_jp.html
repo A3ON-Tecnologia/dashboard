@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ workflow.nome }} - Análise JP</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Space Grotesk', 'Segoe UI', '-apple-system', 'system-ui', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root {
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --glass-bg: rgba(15, 23, 42, 0.65);
+        }
+
+        .glass-panel {
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+        }
+
+        .fade-in-up {
+            animation: fadeInUp 0.5s ease forwards;
+        }
+
+        .scale-in {
+            animation: scaleIn 0.45s ease forwards;
+        }
+
+        @keyframes fadeInUp {
+            0% {
+                opacity: 0;
+                transform: translateY(14px);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes scaleIn {
+            0% {
+                opacity: 0;
+                transform: scale(0.94);
+            }
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+    </style>
+</head>
+<body class="{{ theme.bg }} {{ theme.text }} font-sans h-screen overflow-hidden">
+    <div class="flex h-full">
+        {% include 'partials/sidebar.html' %}
+
+        <main class="flex-1 h-full overflow-y-auto">
+            <div class="max-w-7xl mx-auto px-6 md:px-10 py-10 space-y-8">
+                <header class="glass-panel {{ theme.modal }} border border-white/5 rounded-3xl p-8 shadow-2xl shadow-emerald-500/10">
+                    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+                        <div class="space-y-4">
+                            <div class="flex items-center gap-4">
+                                <a href="/dashboard" class="inline-flex items-center justify-center w-10 h-10 rounded-full border border-white/10 hover:border-white/30 transition-colors duration-300">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                                    </svg>
+                                </a>
+                                <div>
+                                    <p class="text-sm uppercase tracking-[0.35em] text-white/50">Workflow</p>
+                                    <h1 class="text-3xl md:text-4xl font-semibold tracking-tight">{{ workflow.nome }}</h1>
+                                </div>
+                                <span class="px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide {{ theme.badge[workflow.tipo] }}">
+                                    {{ {'balancete': 'Balancete', 'analise_jp': 'Análise JP'}.get(workflow.tipo, workflow.tipo.replace('_', ' ').title()) }}
+                                </span>
+                            </div>
+                            <p class="text-white/70 max-w-3xl leading-relaxed">
+                                {{ workflow.descricao or 'Ambiente dinâmico para uploads e leitura inteligente das categorias da Análise JP.' }}
+                            </p>
+                            <p class="text-xs text-white/40 uppercase tracking-widest">
+                                Criado em {{ workflow.data_criacao.strftime('%d/%m/%Y %H:%M') }}
+                            </p>
+                        </div>
+                        <div class="glass-panel border border-white/10 rounded-2xl px-5 py-4 text-sm min-w-[220px]">
+                            <p class="text-xs uppercase tracking-wider text-white/40">Categoria ativa</p>
+                            <p id="activeCategoryLabel" class="text-sm font-medium text-white/80">-</p>
+                            <p class="text-xs text-white/40 mt-1">Selecione uma categoria para visualizar os dados enviados.</p>
+                        </div>
+                    </div>
+                </header>
+
+                <section class="grid grid-cols-1 xl:grid-cols-4 gap-6">
+                    <aside class="glass-panel {{ theme.modal }} border border-white/5 rounded-3xl p-6 space-y-5 h-full">
+                        <div>
+                            <h2 class="text-xl font-semibold tracking-tight">Categorias</h2>
+                            <p class="text-sm text-white/60 mt-1">Escolha uma categoria para gerenciar uploads e visualizar tabelas.</p>
+                        </div>
+                        <div id="categoryList" class="flex flex-col gap-2"></div>
+                    </aside>
+
+                    <div class="xl:col-span-3 space-y-6">
+                        <div class="glass-panel {{ theme.modal }} border border-white/5 rounded-3xl p-6 space-y-4">
+                            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                                <div>
+                                    <h2 class="text-2xl font-semibold tracking-tight" id="categoryTitle">Selecione uma categoria</h2>
+                                    <p id="categorySubtitle" class="text-sm text-white/60 mt-1">Envie um arquivo CSV ou XLSX para liberar a visualização dos dados.</p>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <button id="refreshButton" class="hidden {{ theme.buttons.secondary }} px-4 py-2.5 rounded-full text-sm uppercase tracking-wide transition-transform duration-300 hover:-translate-y-0.5">
+                                        Atualizar lista
+                                    </button>
+                                    <button id="uploadButton" class="{{ theme.buttons.primary }} px-5 py-2.5 rounded-full text-sm uppercase tracking-wide flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                                        <span>Enviar arquivo</span>
+                                        <span id="uploadSpinner" class="hidden w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="glass-panel {{ theme.modal }} border border-white/5 rounded-3xl p-6 space-y-4">
+                            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                                <div>
+                                    <h3 class="text-xl font-semibold tracking-tight">Arquivos enviados</h3>
+                                    <p class="text-sm text-white/60">Selecione um arquivo para visualizar os dados na tabela dinâmica.</p>
+                                </div>
+                                <div id="activeUploadInfo" class="text-sm text-white/60"></div>
+                            </div>
+                            <div id="uploadsLoading" class="hidden text-sm text-white/60">Carregando uploads...</div>
+                            <div id="uploadsEmptyState" class="border border-dashed border-white/10 rounded-2xl p-8 text-center space-y-3 text-white/60">
+                                <h4 class="text-lg font-semibold text-white/80">Nenhum upload encontrado</h4>
+                                <p class="text-sm">Envie um arquivo para visualizar os dados extraídos.</p>
+                            </div>
+                            <div id="uploadsList" class="space-y-3"></div>
+                        </div>
+
+                        <div class="glass-panel {{ theme.modal }} border border-white/5 rounded-3xl p-6 space-y-5">
+                            <div>
+                                <h3 class="text-xl font-semibold tracking-tight">Tabela dinâmica</h3>
+                                <p id="tableSubtitle" class="text-sm text-white/60">Selecione um upload para visualizar os dados extraídos.</p>
+                            </div>
+                            <div id="tableEmptyState" class="border border-dashed border-white/10 rounded-2xl p-10 text-center space-y-3 text-white/60">
+                                <div class="w-12 h-12 mx-auto rounded-full border border-white/15 flex items-center justify-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                </div>
+                                <p>Nenhum upload selecionado.</p>
+                            </div>
+                            <div id="tableWrapper" class="hidden overflow-x-auto rounded-2xl border border-white/5">
+                                <table class="min-w-full divide-y divide-white/5">
+                                    <thead id="tableHead" class="bg-white/5 uppercase tracking-[0.2em] text-[11px] text-white/60"></thead>
+                                    <tbody id="tableBody" class="divide-y divide-white/5 text-sm"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <input type="file" id="fileInput" class="hidden" accept=".csv,.xlsx">
+
+    <div id="toastContainer" class="fixed bottom-6 right-6 z-[60] space-y-3"></div>
+
+    <script>
+        const workflowId = {{ workflow.id }};
+        const categories = {{ categories | tojson }};
+        let currentCategory = categories.length ? categories[0] : null;
+        let uploadsCache = {};
+        let activeUploadId = null;
+
+        const uploadButton = document.getElementById('uploadButton');
+        const uploadSpinner = document.getElementById('uploadSpinner');
+        const fileInput = document.getElementById('fileInput');
+        const categoryList = document.getElementById('categoryList');
+        const uploadsList = document.getElementById('uploadsList');
+        const uploadsEmptyState = document.getElementById('uploadsEmptyState');
+        const uploadsLoading = document.getElementById('uploadsLoading');
+        const activeCategoryLabel = document.getElementById('activeCategoryLabel');
+        const categoryTitle = document.getElementById('categoryTitle');
+        const categorySubtitle = document.getElementById('categorySubtitle');
+        const tableSubtitle = document.getElementById('tableSubtitle');
+        const tableEmptyState = document.getElementById('tableEmptyState');
+        const tableWrapper = document.getElementById('tableWrapper');
+        const tableHead = document.getElementById('tableHead');
+        const tableBody = document.getElementById('tableBody');
+        const activeUploadInfo = document.getElementById('activeUploadInfo');
+        const refreshButton = document.getElementById('refreshButton');
+
+        function slugToLabel(slug) {
+            return slug
+                .split('_')
+                .map(word => word ? word.charAt(0).toUpperCase() + word.slice(1) : '')
+                .join(' ');
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = `${type === 'success' ? '{{ theme.toast.success }}' : '{{ theme.toast.error }}'} px-4 py-3 rounded-2xl shadow-lg shadow-emerald-500/20 flex items-center gap-3 transition-all duration-300`;
+            toast.textContent = message;
+            document.getElementById('toastContainer').appendChild(toast);
+            setTimeout(() => {
+                toast.classList.add('opacity-0');
+                toast.classList.add('translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        function setUploadingState(isUploading) {
+            if (!uploadButton) return;
+            uploadButton.disabled = isUploading || !currentCategory;
+            if (isUploading) {
+                uploadSpinner.classList.remove('hidden');
+            } else {
+                uploadSpinner.classList.add('hidden');
+            }
+        }
+
+        function setLoadingUploads(isLoading) {
+            if (isLoading) {
+                uploadsLoading.classList.remove('hidden');
+            } else {
+                uploadsLoading.classList.add('hidden');
+            }
+        }
+
+        function updateCategoryHeader() {
+            if (!currentCategory) {
+                activeCategoryLabel.textContent = '-';
+                categoryTitle.textContent = 'Selecione uma categoria';
+                categorySubtitle.textContent = 'Envie um arquivo CSV ou XLSX para liberar a visualização dos dados.';
+                refreshButton.classList.add('hidden');
+                setUploadingState(false);
+                return;
+            }
+
+            const label = slugToLabel(currentCategory);
+            activeCategoryLabel.textContent = label;
+            categoryTitle.textContent = label;
+            categorySubtitle.textContent = 'Envie arquivos da categoria selecionada para visualizar a tabela dinâmica.';
+            refreshButton.classList.remove('hidden');
+            setUploadingState(false);
+        }
+
+        function clearTable() {
+            tableHead.innerHTML = '';
+            tableBody.innerHTML = '';
+            tableWrapper.classList.add('hidden');
+            tableEmptyState.classList.remove('hidden');
+            tableSubtitle.textContent = 'Selecione um upload para visualizar os dados extraídos.';
+            activeUploadInfo.textContent = '';
+        }
+
+        function renderTable(records, upload) {
+            if (!records || !records.length) {
+                clearTable();
+                return;
+            }
+
+            const columns = Object.keys(records[0]);
+            tableHead.innerHTML = '';
+            tableBody.innerHTML = '';
+
+            const headerRow = document.createElement('tr');
+            columns.forEach(column => {
+                const th = document.createElement('th');
+                th.textContent = slugToLabel(column);
+                th.className = 'px-4 py-3 text-left';
+                headerRow.appendChild(th);
+            });
+            tableHead.appendChild(headerRow);
+
+            records.forEach(record => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-white/5 transition-colors';
+                columns.forEach(column => {
+                    const td = document.createElement('td');
+                    let value = record[column];
+                    if (value === null || value === undefined || value === '') {
+                        value = '-';
+                    }
+                    td.textContent = value;
+                    td.className = 'px-4 py-3 align-top';
+                    tr.appendChild(td);
+                });
+                tableBody.appendChild(tr);
+            });
+
+            tableSubtitle.textContent = `Visualizando dados de ${slugToLabel(currentCategory)}.`;
+            tableWrapper.classList.remove('hidden');
+            tableEmptyState.classList.add('hidden');
+            activeUploadInfo.textContent = upload && upload.nome_arquivo ? `Arquivo selecionado: ${upload.nome_arquivo}` : '';
+        }
+
+        function highlightActiveUpload(uploadId) {
+            const items = uploadsList.querySelectorAll('button[data-upload-id]');
+            items.forEach(item => {
+                if (parseInt(item.dataset.uploadId, 10) === uploadId) {
+                    item.classList.add('border-emerald-400', 'bg-emerald-500/10');
+                } else {
+                    item.classList.remove('border-emerald-400', 'bg-emerald-500/10');
+                }
+            });
+        }
+
+        function renderUploads(category, uploads) {
+            uploadsList.innerHTML = '';
+
+            if (!uploads.length) {
+                uploadsEmptyState.classList.remove('hidden');
+                clearTable();
+                return;
+            }
+
+            uploadsEmptyState.classList.add('hidden');
+
+            uploads.forEach((upload, index) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.dataset.uploadId = upload.id;
+                button.className = 'w-full text-left px-5 py-4 rounded-2xl border border-white/10 bg-white/5 hover:border-emerald-400 transition-colors duration-300';
+
+                const name = document.createElement('p');
+                name.className = 'text-sm font-semibold text-white/80';
+                name.textContent = upload.nome_arquivo;
+
+                const meta = document.createElement('p');
+                meta.className = 'text-xs text-white/50 mt-1';
+                meta.textContent = upload.created_at ? new Date(upload.created_at).toLocaleString('pt-BR') : 'Data não disponível';
+
+                button.appendChild(name);
+                button.appendChild(meta);
+
+                button.addEventListener('click', () => {
+                    activeUploadId = upload.id;
+                    renderTable(upload.dados_extraidos, upload);
+                    highlightActiveUpload(upload.id);
+                });
+
+                uploadsList.appendChild(button);
+
+                if (index === 0 && (activeUploadId === null || !uploads.some(item => item.id === activeUploadId))) {
+                    activeUploadId = upload.id;
+                    renderTable(upload.dados_extraidos, upload);
+                }
+            });
+
+            highlightActiveUpload(activeUploadId);
+        }
+
+        function setActiveCategory(category) {
+            currentCategory = category;
+            activeUploadId = null;
+            updateCategoryHeader();
+
+            Array.from(categoryList.querySelectorAll('button[data-category]')).forEach(button => {
+                if (button.dataset.category === category) {
+                    button.classList.add('border-emerald-400', 'bg-emerald-500/10', 'text-white');
+                } else {
+                    button.classList.remove('border-emerald-400', 'bg-emerald-500/10', 'text-white');
+                }
+            });
+
+            if (!category) {
+                uploadsList.innerHTML = '';
+                uploadsEmptyState.classList.remove('hidden');
+                clearTable();
+                return;
+            }
+
+            if (uploadsCache[category]) {
+                renderUploads(category, uploadsCache[category]);
+            } else {
+                loadUploads(category);
+            }
+        }
+
+        function createCategoryButtons() {
+            if (!categories.length) {
+                categoryList.innerHTML = '<p class="text-sm text-white/60">Nenhuma categoria configurada.</p>';
+                uploadButton.disabled = true;
+                return;
+            }
+
+            categories.forEach(category => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.dataset.category = category;
+                button.className = 'w-full text-left px-4 py-2.5 rounded-2xl border border-white/10 bg-white/5 hover:border-emerald-400 transition-colors duration-300';
+                button.textContent = slugToLabel(category);
+                button.addEventListener('click', () => setActiveCategory(category));
+                categoryList.appendChild(button);
+            });
+        }
+
+        function loadUploads(category) {
+            if (!category) return;
+            setLoadingUploads(true);
+            uploadsList.innerHTML = '';
+            uploadsEmptyState.classList.add('hidden');
+            clearTable();
+
+            fetch(`/analise_jp/${workflowId}/uploads/${category}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        showToast(data.error, 'error');
+                        uploadsEmptyState.classList.remove('hidden');
+                        return;
+                    }
+                    uploadsCache[category] = data.uploads || [];
+                    renderUploads(category, uploadsCache[category]);
+                })
+                .catch(() => {
+                    showToast('Falha ao carregar uploads.', 'error');
+                    uploadsEmptyState.classList.remove('hidden');
+                })
+                .finally(() => {
+                    setLoadingUploads(false);
+                });
+        }
+
+        function uploadFileForCategory() {
+            if (!currentCategory) {
+                showToast('Selecione uma categoria antes de enviar o arquivo.', 'error');
+                return;
+            }
+
+            const file = fileInput.files[0];
+            if (!file) {
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('arquivo', file);
+
+            setUploadingState(true);
+            showToast('Processando upload...', 'success');
+
+            fetch(`/analise_jp/${workflowId}/upload/${currentCategory}`, {
+                method: 'POST',
+                body: formData
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        showToast(data.error, 'error');
+                        return;
+                    }
+
+                    showToast(data.message || 'Upload realizado com sucesso!', 'success');
+                    fileInput.value = '';
+                    uploadsCache[currentCategory] = [data.upload, ...(uploadsCache[currentCategory] || [])];
+                    renderUploads(currentCategory, uploadsCache[currentCategory]);
+                    highlightActiveCategoryButton();
+                })
+                .catch(() => {
+                    showToast('Falha ao enviar o arquivo.', 'error');
+                })
+                .finally(() => {
+                    setUploadingState(false);
+                });
+        }
+
+        function highlightActiveCategoryButton() {
+            Array.from(categoryList.querySelectorAll('button[data-category]')).forEach(button => {
+                if (button.dataset.category === currentCategory) {
+                    button.classList.add('border-emerald-400', 'bg-emerald-500/10', 'text-white');
+                } else {
+                    button.classList.remove('border-emerald-400', 'bg-emerald-500/10', 'text-white');
+                }
+            });
+        }
+
+        function initEvents() {
+            if (uploadButton) {
+                uploadButton.addEventListener('click', () => {
+                    if (!currentCategory) {
+                        showToast('Selecione uma categoria antes de enviar o arquivo.', 'error');
+                        return;
+                    }
+                    fileInput.click();
+                });
+            }
+
+            fileInput.addEventListener('change', () => {
+                if (fileInput.files && fileInput.files[0]) {
+                    uploadFileForCategory();
+                }
+            });
+
+            refreshButton.addEventListener('click', () => {
+                if (currentCategory) {
+                    loadUploads(currentCategory);
+                }
+            });
+        }
+
+        function logout() {
+            fetch('/logout')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.message) {
+                        window.location.href = '/';
+                    }
+                });
+        }
+
+        function changeTheme(theme) {
+            fetch(`/theme/${theme}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            }).then(response => {
+                if (response.ok) window.location.reload();
+            });
+        }
+
+        function createThemeMenu() {
+            if (document.getElementById('themeMenuContainer')) {
+                return;
+            }
+
+            if (!document.getElementById('menuPortal')) return;
+
+            const menuContainer = document.createElement('div');
+            menuContainer.id = 'themeMenuContainer';
+            menuContainer.style.position = 'fixed';
+            menuContainer.style.top = '0';
+            menuContainer.style.left = '0';
+            menuContainer.style.width = '100vw';
+            menuContainer.style.height = '100vh';
+            menuContainer.style.pointerEvents = 'none';
+            menuContainer.style.zIndex = '99999';
+            document.body.appendChild(menuContainer);
+
+            const menu = document.createElement('div');
+            menu.id = 'themeMenu';
+            menu.className = 'hidden {{ theme.modal }} rounded-lg shadow-xl py-1 w-56';
+            menu.style.position = 'absolute';
+            menu.style.pointerEvents = 'auto';
+
+            const themes = [
+                { name: 'Escuro', value: 'dark', preview: 'bg-gradient-to-r from-gray-900 via-gray-800 to-gray-700' },
+                { name: 'Claro', value: 'light', preview: 'bg-gradient-to-r from-blue-500 via-white to-gray-100' },
+                { name: 'Neon', value: 'neon', preview: 'bg-gradient-to-r from-purple-600 via-green-400 to-black' },
+                { name: 'Futurista', value: 'futurist', preview: 'bg-gradient-to-r from-blue-600 via-cyan-400 to-purple-600' }
+            ];
+
+            themes.forEach(themeOption => {
+                const link = document.createElement('a');
+                link.href = '#';
+                link.className = 'block px-4 py-2 text-sm hover:{{ theme.accent }} flex items-center justify-between';
+
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'flex items-center gap-3';
+
+                const nameSpan = document.createElement('span');
+                nameSpan.textContent = themeOption.name;
+
+                const previewDiv = document.createElement('div');
+                previewDiv.className = `w-5 h-5 rounded-full ${themeOption.preview} border border-gray-400/20`;
+
+                contentDiv.appendChild(previewDiv);
+                contentDiv.appendChild(nameSpan);
+                link.appendChild(contentDiv);
+
+                link.onclick = (e) => {
+                    e.preventDefault();
+                    changeTheme(themeOption.value);
+                    const menuEl = document.getElementById('themeMenu');
+                    if (menuEl) {
+                        menuEl.classList.add('hidden');
+                    }
+                };
+
+                menu.appendChild(link);
+            });
+
+            menuContainer.appendChild(menu);
+        }
+
+        function toggleThemeMenu(event) {
+            const menu = document.getElementById('themeMenu');
+            if (!menu) return;
+
+            const button = event.currentTarget;
+            const buttonRect = button.getBoundingClientRect();
+
+            if (menu.classList.contains('hidden')) {
+                const viewportHeight = window.innerHeight;
+                const viewportWidth = window.innerWidth;
+                const menuHeight = 200;
+                const menuWidth = 240;
+
+                let topPosition = buttonRect.top;
+                let leftPosition = buttonRect.right + 12;
+
+                if (buttonRect.top + menuHeight > viewportHeight) {
+                    topPosition = Math.max(16, buttonRect.bottom - menuHeight);
+                }
+
+                if (leftPosition + menuWidth > viewportWidth) {
+                    leftPosition = Math.max(16, buttonRect.left - menuWidth - 12);
+                }
+
+                menu.style.top = `${topPosition}px`;
+                menu.style.left = `${leftPosition}px`;
+                menu.classList.remove('hidden');
+            } else {
+                menu.classList.add('hidden');
+            }
+        }
+
+        function openUserProfile() {
+            console.log('Open user profile');
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            createCategoryButtons();
+            initEvents();
+            createThemeMenu();
+            if (currentCategory) {
+                setActiveCategory(currentCategory);
+            } else {
+                updateCategoryHeader();
+            }
+
+            document.addEventListener('click', function(event) {
+                const menu = document.getElementById('themeMenu');
+                if (!menu || menu.classList.contains('hidden')) return;
+                const isThemeButton = event.target.closest('button[title="Alterar Tema"]');
+                if (!isThemeButton && !menu.contains(event.target)) {
+                    menu.classList.add('hidden');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
