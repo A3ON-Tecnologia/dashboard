@@ -1,6 +1,14 @@
 ﻿from pathlib import Path
 
-from flask import Blueprint, render_template, request, jsonify, current_app
+from flask import (
+    Blueprint,
+    current_app,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
 from flask_login import login_required, current_user
 
 from app import db
@@ -14,6 +22,8 @@ from app.services.workflow_import_service import (
 )
 
 workflow_bp = Blueprint('workflow', __name__)
+
+WORKFLOW_ALLOWED_TYPES = {'balancete', 'analise_jp'}
 
 ALLOWED_CHART_TYPES = {
     'bar', 'line', 'pie', 'doughnut', 'radar', 'area', 'scatter', 'heatmap', 'gauge', 'table'
@@ -94,6 +104,9 @@ def workflow_charts_view(workflow_nome):
 def workflow_view(workflow_nome):
     """Exibe a pagina do workflow selecionado."""
     workflow = _get_workflow_for_user_by_name(workflow_nome)
+    if workflow.tipo == 'analise_jp':
+        return redirect(url_for('analise_jp.analise_jp_view', workflow_id=workflow.id))
+
     arquivo_atual, processed_data = _get_processed_data_for_workflow(workflow.id)
 
     theme = get_theme_context()
@@ -136,8 +149,8 @@ def create_workflow():
     if existing:
         return jsonify({'error': 'Ja existe um workflow com este nome.'}), 400
 
-    if data['tipo'] not in ['comparativo', 'evolucao']:
-        return jsonify({'error': 'Tipo deve ser "comparativo" ou "evolucao".'}), 400
+    if data['tipo'] not in WORKFLOW_ALLOWED_TYPES:
+        return jsonify({'error': 'Tipo deve ser "balancete" ou "analise_jp".'}), 400
 
     try:
         workflow = Workflow(
@@ -179,8 +192,8 @@ def update_workflow(workflow_id):
         if existing:
             return jsonify({'error': 'Ja existe um workflow com este nome.'}), 400
 
-    if 'tipo' in data and data['tipo'] not in ['comparativo', 'evolucao']:
-        return jsonify({'error': 'Tipo deve ser "comparativo" ou "evolucao".'}), 400
+    if 'tipo' in data and data['tipo'] not in WORKFLOW_ALLOWED_TYPES:
+        return jsonify({'error': 'Tipo deve ser "balancete" ou "analise_jp".'}), 400
 
     try:
         if 'nome' in data:

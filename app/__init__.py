@@ -67,10 +67,12 @@ def create_app():
         from app.routes.main import main_bp
         from app.routes.admin import admin_bp
         from app.routes.workflow import workflow_bp
+        from app.routes.analise_jp import analise_jp_bp
 
         app.register_blueprint(auth_bp)
         app.register_blueprint(main_bp)
         app.register_blueprint(admin_bp)
         app.register_blueprint(workflow_bp)
+        app.register_blueprint(analise_jp_bp)
 
         return app
