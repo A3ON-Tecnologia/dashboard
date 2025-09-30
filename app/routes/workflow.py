@@ -232,6 +232,37 @@ def listar_arquivos(workflow_id):
     return jsonify([arquivo.to_dict() for arquivo in arquivos])
 
 
+@workflow_bp.route('/api/workflows/<int:workflow_id>/arquivos/<int:arquivo_id>', methods=['DELETE'])
+@login_required
+def excluir_arquivo(workflow_id, arquivo_id):
+    workflow = Workflow.query.filter_by(
+        id=workflow_id,
+        usuario_id=current_user.id
+    ).first_or_404()
+
+    arquivo = ArquivoImportado.query.filter_by(
+        id=arquivo_id,
+        workflow_id=workflow.id
+    ).first_or_404()
+
+    caminho_arquivo = Path(arquivo.caminho_arquivo) if arquivo.caminho_arquivo else None
+
+    try:
+        db.session.delete(arquivo)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        return jsonify({'error': 'Erro ao excluir arquivo.'}), 500
+
+    if caminho_arquivo and caminho_arquivo.exists():
+        try:
+            caminho_arquivo.unlink()
+        except OSError:
+            current_app.logger.warning('Nao foi possivel remover o arquivo fisico %s', caminho_arquivo)
+
+    return jsonify({'message': 'Arquivo excluido com sucesso.'})
+
+
 @workflow_bp.route('/api/workflows/<int:workflow_id>/comparativo', methods=['GET'])
 @login_required
 def obter_dados_comparativo(workflow_id):

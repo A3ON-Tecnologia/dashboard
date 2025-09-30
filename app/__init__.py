@@ -1,5 +1,7 @@
 ﻿import os
 from pathlib import Path
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from flask import Flask
 from flask_login import LoginManager
 from flask_migrate import Migrate
@@ -9,6 +11,17 @@ from app.models.workflow import Workflow
 from app.services.auth_service import init_bcrypt
 
 login_manager = LoginManager()
+
+SAO_PAULO_TZ = ZoneInfo("America/Sao_Paulo")
+UTC = timezone.utc
+
+
+def to_sao_paulo(dt, fmt="%d/%m/%Y %H:%M"):
+    if not dt:
+        return ""
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+    return dt.astimezone(SAO_PAULO_TZ).strftime(fmt)
 
 
 @login_manager.user_loader
@@ -32,6 +45,7 @@ def create_app():
     app.config.from_object(Config)
     app.jinja_env.auto_reload = True
     app.config['TEMPLATES_AUTO_RELOAD'] = True
+    app.jinja_env.filters['datetime_sp'] = to_sao_paulo
 
     upload_path = Path(app.config['UPLOAD_FOLDER'])
     upload_path.mkdir(parents=True, exist_ok=True)

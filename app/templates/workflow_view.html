@@ -206,6 +206,24 @@
                         </div>
                     </div>
 
+                    <div class="glass-panel {{ theme.modal }} border border-white/5 rounded-3xl p-6 md:p-7 shadow-xl shadow-blue-500/10">
+                        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+                            <div>
+                                <h2 class="text-2xl font-semibold tracking-tight">Historico de uploads</h2>
+                                <p class="text-sm text-white/60 mt-1">Visualize seus arquivos importados e remova entradas desnecessarias.</p>
+                            </div>
+                            <button id="refreshHistoryBtn" class="{{ theme.buttons.secondary }} px-5 py-2.5 rounded-full text-sm font-semibold tracking-wide uppercase transition-transform duration-300 hover:-translate-y-0.5">
+                                Atualizar lista
+                            </button>
+                        </div>
+                        <div id="historyLoading" class="text-sm text-white/60">Carregando uploads...</div>
+                        <div id="historyEmptyState" class="hidden border border-dashed border-white/10 rounded-2xl p-8 text-center space-y-3">
+                            <h3 class="text-lg font-semibold text-white/80">Nenhum upload encontrado</h3>
+                            <p class="text-sm text-white/60">Assim que voce importar um arquivo ele aparecera aqui.</p>
+                        </div>
+                        <ul id="historyList" class="hidden space-y-3"></ul>
+                    </div>
+
                 </section>
             </div>
         </main>
@@ -532,9 +550,23 @@
 
         async function fetchHistorico() {
             const historyList = document.getElementById('historyList');
+            const loadingState = document.getElementById('historyLoading');
+            const emptyState = document.getElementById('historyEmptyState');
             if (!historyList) {
                 return;
             }
+
+            if (loadingState) {
+                loadingState.classList.remove('hidden');
+                loadingState.textContent = 'Carregando uploads...';
+            }
+            if (emptyState) {
+                emptyState.classList.add('hidden');
+            }
+
+            historyList.classList.add('hidden');
+            historyList.innerHTML = '';
+
             try {
                 const response = await fetch(historicoEndpoint);
                 if (!response.ok) {
@@ -544,37 +576,138 @@
                 renderHistorico(lista);
             } catch (error) {
                 console.error(error);
+                if (loadingState) {
+                    loadingState.classList.remove('hidden');
+                    loadingState.textContent = 'Nao foi possivel carregar os uploads.';
+                }
                 showToast('Nao foi possivel carregar o historico.', 'error');
             }
         }
 
         function renderHistorico(itens) {
             const historyList = document.getElementById('historyList');
+            const loadingState = document.getElementById('historyLoading');
+            const emptyState = document.getElementById('historyEmptyState');
             if (!historyList) {
                 return;
             }
+
+            if (loadingState) {
+                loadingState.classList.add('hidden');
+            }
+
             historyList.innerHTML = '';
 
             if (!Array.isArray(itens) || itens.length === 0) {
-                const li = document.createElement('li');
-                li.className = 'text-white/50 text-xs uppercase tracking-wide';
-                li.textContent = 'Nenhum upload realizado ate o momento.';
-                historyList.appendChild(li);
+                historyList.classList.add('hidden');
+                if (emptyState) {
+                    emptyState.classList.remove('hidden');
+                }
                 return;
             }
 
-            itens.slice(0, 5).forEach((item) => {
+            historyList.classList.remove('hidden');
+            if (emptyState) {
+                emptyState.classList.add('hidden');
+            }
+
+            itens.forEach((item) => {
                 const li = document.createElement('li');
-                li.className = 'glass-panel border border-white/10 rounded-2xl px-4 py-3 flex flex-col gap-1 text-sm';
-                li.innerHTML = `
-                    <span class="flex items-center justify-between text-white/80">
-                        <span class="font-medium truncate">${item.nome_arquivo}</span>
-                        <span class="text-xs text-white/40 uppercase tracking-wide">${formatDate(item.data_upload)}</span>
-                    </span>
-                    <span class="text-xs text-white/50">${item.dados_extraidos?.total_indicadores || 0} indicadores processados</span>
-                `;
+                li.className = 'glass-panel border border-white/10 rounded-2xl px-4 py-4 flex flex-col gap-3 text-sm';
+
+                const wrapper = document.createElement('div');
+                wrapper.className = 'flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between';
+
+                const infoDiv = document.createElement('div');
+                infoDiv.className = 'min-w-0';
+
+                const nomeArquivo = item && item.nome_arquivo ? item.nome_arquivo : 'Arquivo sem nome';
+                const nameEl = document.createElement('p');
+                nameEl.className = 'font-medium text-white/80 truncate';
+                nameEl.textContent = nomeArquivo;
+                nameEl.title = nomeArquivo;
+
+                const totalIndicadores = item && item.dados_extraidos && typeof item.dados_extraidos.total_indicadores === 'number'
+                    ? item.dados_extraidos.total_indicadores
+                    : 0;
+                const summaryEl = document.createElement('p');
+                summaryEl.className = 'text-xs text-white/50 mt-1';
+                summaryEl.textContent = `${totalIndicadores} indicador${totalIndicadores === 1 ? '' : 'es'} processado${totalIndicadores === 1 ? '' : 's'}`;
+
+                infoDiv.appendChild(nameEl);
+                infoDiv.appendChild(summaryEl);
+
+                const actionsDiv = document.createElement('div');
+                actionsDiv.className = 'flex flex-col items-end gap-2 text-right sm:flex-row sm:items-center sm:gap-3';
+
+                const dateEl = document.createElement('span');
+                dateEl.className = 'text-xs text-white/40 uppercase tracking-wide';
+                dateEl.textContent = formatDate(item ? item.data_upload : null);
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.type = 'button';
+                deleteBtn.className = `delete-history-btn {{ theme.buttons.danger }} px-3 py-1.5 text-xs uppercase tracking-wide rounded-full`;
+                deleteBtn.dataset.fileId = item && item.id !== undefined && item.id !== null ? String(item.id) : '';
+                deleteBtn.dataset.fileName = nomeArquivo;
+                deleteBtn.textContent = 'Excluir';
+
+                actionsDiv.appendChild(dateEl);
+                actionsDiv.appendChild(deleteBtn);
+
+                wrapper.appendChild(infoDiv);
+                wrapper.appendChild(actionsDiv);
+
+                li.appendChild(wrapper);
                 historyList.appendChild(li);
             });
+        }
+
+        async function deleteArquivoHistorico(arquivoId, nomeArquivo, triggerButton) {
+            if (!arquivoId) {
+                return;
+            }
+
+            const confirmationMessage = nomeArquivo
+                ? `Deseja excluir o arquivo "${nomeArquivo}"?`
+                : 'Deseja excluir este arquivo?';
+
+            if (!window.confirm(confirmationMessage)) {
+                return;
+            }
+
+            let previousLabel = null;
+            if (triggerButton) {
+                previousLabel = triggerButton.textContent;
+                triggerButton.disabled = true;
+                triggerButton.textContent = 'Removendo...';
+                triggerButton.classList.add('opacity-70', 'cursor-not-allowed');
+            }
+
+            try {
+                const response = await fetch(`${uploadEndpoint}/${arquivoId}`, {
+                    method: 'DELETE'
+                });
+                let payload = {};
+                try {
+                    payload = await response.json();
+                } catch (jsonError) {
+                    payload = {};
+                }
+                if (!response.ok) {
+                    throw new Error(payload.error || 'Erro ao excluir arquivo.');
+                }
+                showToast(payload.message || 'Arquivo excluido com sucesso.', 'success');
+                refreshData();
+            } catch (error) {
+                console.error(error);
+                showToast(error.message || 'Nao foi possivel excluir o arquivo.', 'error');
+            } finally {
+                if (triggerButton) {
+                    triggerButton.disabled = false;
+                    triggerButton.textContent = previousLabel || 'Excluir';
+                    triggerButton.classList.remove('opacity-70', 'cursor-not-allowed');
+                }
+            }
         }
 
         function updatePagination(totalItems, totalPages, startDisplay, endDisplay) {
@@ -778,8 +911,31 @@
             });
             const refreshHistoryBtn = document.getElementById('refreshHistoryBtn');
             if (refreshHistoryBtn) {
-                refreshHistoryBtn.addEventListener('click', refreshData);
+                refreshHistoryBtn.addEventListener('click', () => {
+                    fetchHistorico();
+                });
             }
+
+            const historyListEl = document.getElementById('historyList');
+            if (historyListEl) {
+                historyListEl.addEventListener('click', (event) => {
+                    const deleteButton = event.target.closest('.delete-history-btn');
+                    if (!deleteButton) {
+                        return;
+                    }
+
+                    event.preventDefault();
+                    const arquivoId = Number.parseInt(deleteButton.dataset.fileId, 10);
+                    const nomeArquivo = deleteButton.dataset.fileName || '';
+                    if (!Number.isInteger(arquivoId)) {
+                        showToast('Arquivo invalido selecionado.', 'error');
+                        return;
+                    }
+
+                    deleteArquivoHistorico(arquivoId, nomeArquivo, deleteButton);
+                });
+            }
+
             document.getElementById('prevPageBtn').addEventListener('click', () => {
                 if (currentPage > 1) {
                     currentPage -= 1;
