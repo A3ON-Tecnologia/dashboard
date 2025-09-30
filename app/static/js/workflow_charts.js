@@ -12,7 +12,8 @@ const state = {
     pendingDelete: null,
     selectedIndicators: [],
     selectedMetrics: [METRIC_OPTIONS[0].value],
-    activeDropdown: null
+    activeDropdown: null,
+    resizeObservers: new Map()
 };
 
 const elements = {
@@ -406,6 +407,23 @@ function getChartMetrics(chart) {
     return metrics.filter((metric) => METRIC_OPTIONS.some((option) => option.value === metric));
 }
 
+function getChartContainerSizing(type) {
+    const normalized = (type || '').toLowerCase();
+    switch (normalized) {
+        case 'pie':
+        case 'doughnut':
+            return { paddingBottom: '100%', minHeight: '260px', maxHeight: '420px', aspectRatio: '1 / 1' };
+        case 'gauge':
+            return { paddingBottom: '75%', minHeight: '260px', maxHeight: '420px', aspectRatio: '5 / 3' };
+        case 'table':
+            return { paddingBottom: '55%', minHeight: '220px', maxHeight: '360px', aspectRatio: '4 / 3' };
+        case 'radar':
+            return { paddingBottom: '80%', minHeight: '260px', maxHeight: '440px', aspectRatio: '4 / 3' };
+        default:
+            return { paddingBottom: '62%', minHeight: '280px', maxHeight: '520px', aspectRatio: '16 / 9' };
+    }
+}
+
 function buildFigure(chart) {
     const metrics = getChartMetrics(chart);
     const metricsList = metrics.length ? metrics : (chart.metric ? [chart.metric] : []);
@@ -648,6 +666,13 @@ function renderCharts() {
     if (!elements.chartsGrid) return;
     elements.chartsGrid.innerHTML = '';
 
+    if (state.resizeObservers instanceof Map) {
+        state.resizeObservers.forEach((observer) => {
+            try { observer.disconnect(); } catch (error) { /* noop */ }
+        });
+        state.resizeObservers.clear();
+    }
+
     if (!state.charts.length) {
         elements.emptyState?.classList.remove('hidden');
         return;
@@ -665,13 +690,13 @@ function renderCharts() {
 
         const metricsList = getChartMetrics(chart);
         const metricSummary = metricsList.length ? metricsList.map(metricLabel).join(', ') : metricLabel(chart.metric || '');
-        const indicatorSummary = chart.indicators.map((name) => `<span class=\\"text-white/70\\">${name}</span>`).join(', ');
+        const indicatorSummary = chart.indicators.map((name) => `<span class=\"text-white/70\">${name}</span>`).join(', ');
 
         const info = document.createElement('div');
         info.innerHTML = `
-            <h3 class=\"text-lg font-semibold\">${chart.nome || chart.chart_type}</h3>
-            <p class=\"text-xs text-white/50 mt-1\">Metricas: ${metricSummary || 'n/d'}</p>
-            <p class=\"text-xs text-white/50 mt-1\">Indicadores: ${indicatorSummary}</p>
+            <h3 class="text-lg font-semibold">${chart.nome || chart.chart_type}</h3>
+            <p class="text-xs text-white/50 mt-1">Metricas: ${metricSummary || 'n/d'}</p>
+            <p class="text-xs text-white/50 mt-1">Indicadores: ${indicatorSummary}</p>
         `;
 
         const actions = document.createElement('div');
@@ -687,24 +712,59 @@ function renderCharts() {
         header.appendChild(info);
         header.appendChild(actions);
 
-        const plot = document.createElement('div');
         const plotId = `chart-plot-${chart.id}`;
-        plot.id = plotId;
-        plot.className = 'w-full h-72';
+        const sizing = getChartContainerSizing(chart.chart_type || chart.chartType);
+
+        const plotWrapper = document.createElement('div');
+        plotWrapper.className = 'chart-plot-wrapper';
+        plotWrapper.style.paddingBottom = sizing.paddingBottom || '62%';
+        plotWrapper.style.minHeight = sizing.minHeight || '280px';
+        plotWrapper.style.maxHeight = sizing.maxHeight || '520px';
+        if (sizing.aspectRatio) {
+            plotWrapper.style.aspectRatio = sizing.aspectRatio;
+            plotWrapper.style.height = 'auto';
+        } else {
+            plotWrapper.style.aspectRatio = '';
+            plotWrapper.style.height = '0';
+        }
+
+        const plotCanvas = document.createElement('div');
+        plotCanvas.id = plotId;
+        plotCanvas.className = 'chart-plot-canvas';
+        plotWrapper.appendChild(plotCanvas);
 
         card.appendChild(header);
-        card.appendChild(plot);
+        card.appendChild(plotWrapper);
         elements.chartsGrid.appendChild(card);
 
         const figure = buildFigure(chart);
         if (figure) {
-            Plotly.newPlot(plotId, figure.data, figure.layout, {
+            const config = {
                 responsive: true,
                 displaylogo: false,
                 modeBarButtonsToRemove: ['lasso2d', 'autoScale2d']
+            };
+
+            Plotly.newPlot(plotCanvas, figure.data, figure.layout, config).then(() => {
+                try { Plotly.Plots.resize(plotCanvas); } catch (error) { /* noop */ }
             });
+
+            if (window.ResizeObserver) {
+                try {
+                    const observer = new ResizeObserver(() => {
+                        try { Plotly.Plots.resize(plotCanvas); } catch (resizeError) { /* noop */ }
+                    });
+                    observer.observe(plotWrapper);
+                    state.resizeObservers.set(chart.id, observer);
+                } catch (error) {
+                    window.addEventListener('resize', () => {
+                        try { Plotly.Plots.resize(plotCanvas); } catch (resizeError) { /* noop */ }
+                    }, { passive: true });
+                }
+            }
         } else {
-            plot.innerHTML = '<p class="text-sm text-white/60">Nao foi possivel renderizar este grafico.</p>';
+            plotCanvas.className = 'chart-plot-canvas flex items-center justify-center text-sm text-white/60 text-center px-4';
+            plotCanvas.textContent = 'Nao foi possivel renderizar este grafico.';
         }
     });
 }
@@ -838,10 +898,27 @@ function toggleThemeMenu(event) {
     const menu = document.getElementById('themeMenu');
     if (!menu) return;
 
+    const button = event.currentTarget;
+    const rect = button.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+    const viewportWidth = window.innerWidth;
+    const menuHeight = 220;
+    const menuWidth = 240;
+
     if (menu.classList.contains('hidden')) {
-        const rect = event.currentTarget.getBoundingClientRect();
-        menu.style.top = `${rect.bottom + 8}px`;
-        menu.style.left = `${Math.min(rect.left, window.innerWidth - menu.offsetWidth - 16)}px`;
+        let top = rect.top;
+        let left = rect.right + 12;
+
+        if (rect.top + menuHeight > viewportHeight) {
+            top = Math.max(16, rect.bottom - menuHeight);
+        }
+
+        if (left + menuWidth > viewportWidth) {
+            left = Math.max(16, rect.left - menuWidth - 12);
+        }
+
+        menu.style.top = `${top}px`;
+        menu.style.left = `${left}px`;
         menu.classList.remove('hidden');
     } else {
         menu.classList.add('hidden');
