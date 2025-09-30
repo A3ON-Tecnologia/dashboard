@@ -7,6 +7,7 @@ from flask_login import LoginManager
 from flask_migrate import Migrate
 from config import Config
 from app.models.user import db, User
+from app.models.dashboard import Dashboard
 from app.models.workflow import Workflow
 from app.services.auth_service import init_bcrypt
 

@@ -158,7 +158,7 @@
                                 </p>
                             </div>
                             <button id="createChartBtn" class="hidden {{ theme.buttons.secondary }} px-5 py-2.5 rounded-full text-sm font-semibold tracking-wide uppercase transition-transform duration-300 hover:-translate-y-0.5">
-                                Criar grafico
+                                Área de Gráficos
                             </button>
                         </div>
 
@@ -349,6 +349,7 @@
         const uploadEndpoint = `/api/workflows/${workflowId}/arquivos`;
         const comparativoEndpoint = `/api/workflows/${workflowId}/comparativo`;
         const historicoEndpoint = `/api/workflows/${workflowId}/arquivos`;
+        const chartsViewUrl = "{{ url_for('workflow.workflow_charts_view', workflow_nome=workflow.nome) }}";
         const initialComparativo = {{ processed_data | tojson | safe if processed_data else 'null' }};
         const initialArquivo = {{ arquivo_atual.to_dict() | tojson | safe if arquivo_atual else 'null' }};
 
@@ -383,13 +384,10 @@
         }
 
         function openGraphModal() {
-            if (!currentData || !Array.isArray(currentData.indicadores) || currentData.indicadores.length === 0) {
-                showToast('Importe um arquivo para liberar a selecao de indicadores.', 'error');
+            if (!chartsViewUrl) {
                 return;
             }
-            populateIndicatorSelect();
-            document.getElementById('graphModal').classList.remove('hidden');
-            document.getElementById('graphModal').classList.add('flex');
+            window.location.href = chartsViewUrl;
         }
 
         function closeGraphModal() {

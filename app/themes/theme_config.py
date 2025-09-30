@@ -33,7 +33,8 @@
         'danger_icon': {
             'container': 'bg-rose-500/20',
             'icon': 'text-rose-400'
-        }
+        },
+        'chart_palette': ['#3b82f6', '#22d3ee', '#a855f7', '#f97316', '#14b8a6', '#facc15']
     },
     'light': {
         'name': 'light',
@@ -73,7 +74,8 @@
         'table': {
             'header': 'text-gray-900',
             'row': 'text-gray-800'
-        }
+        },
+        'chart_palette': ['#2563eb', '#0ea5e9', '#10b981', '#f97316', '#7c3aed', '#ef4444']
     },
     'neon': {
         'name': 'neon',
@@ -109,7 +111,8 @@
         'danger_icon': {
             'container': 'bg-pink-600/20 border border-pink-500/40',
             'icon': 'text-pink-300'
-        }
+        },
+        'chart_palette': ['#a855f7', '#06b6d4', '#f97316', '#ec4899', '#22c55e', '#fde047']
     },
     'futurist': {
         'name': 'futurist',
@@ -145,7 +148,8 @@
         'danger_icon': {
             'container': 'bg-rose-600/20 border border-rose-500/40',
             'icon': 'text-rose-300'
-        }
+        },
+        'chart_palette': ['#38bdf8', '#a855f7', '#22d3ee', '#f472b6', '#facc15', '#34d399']
     }
 }
 
