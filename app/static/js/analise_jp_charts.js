@@ -399,6 +399,15 @@ function parseNumeric(value) {
     if (typeof value !== 'string') return null;
     const trimmed = value.trim();
     if (!trimmed) return null;
+    const timeMatch = trimmed.match(/^([+-]?)(\d+):([0-5]?\d)(?::([0-5]?\d))?$/);
+    if (timeMatch) {
+        const sign = timeMatch[1] === '-' ? -1 : 1;
+        const hours = parseInt(timeMatch[2], 10);
+        const minutes = parseInt(timeMatch[3], 10);
+        const seconds = timeMatch[4] ? parseInt(timeMatch[4], 10) : 0;
+        const decimalHours = hours + minutes / 60 + seconds / 3600;
+        return sign * decimalHours;
+    }
     let normalized = trimmed.replace(/\s+/g, '');
     if (normalized.includes(',') && normalized.includes('.')) {
         normalized = normalized.replace(/\./g, '').replace(',', '.');
