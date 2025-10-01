@@ -1,7 +1,7 @@
 import io
 from datetime import datetime
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import pandas as pd
 from flask import Blueprint, current_app, jsonify, redirect, render_template, request, url_for
@@ -13,6 +13,7 @@ from app import db
 from app.models.analise_upload import AnaliseUpload
 from app.models.workflow import Workflow
 from app.services.theme_service import get_theme_context
+from sqlalchemy.exc import SQLAlchemyError
 
 
 analise_jp_bp = Blueprint('analise_jp', __name__)
@@ -110,6 +111,44 @@ def _extract_payload(file: FileStorage) -> Tuple[List[dict], bytes]:
     return records, file_bytes
 
 
+def _load_template_upload(categoria: str) -> Optional[dict]:
+    template_dir = current_app.config.get('ANALISE_JP_TEMPLATE_DIR')
+    if not template_dir:
+        return None
+
+    template_path = Path(template_dir)
+    if not template_path.exists() or not template_path.is_dir():
+        return None
+
+    candidate_files = [
+        template_path / f'{categoria}.csv',
+        template_path / f'{categoria}.xlsx'
+    ]
+
+    file_path = next((path for path in candidate_files if path.exists()), None)
+    if not file_path:
+        return None
+
+    try:
+        file_bytes = file_path.read_bytes()
+        dataframe = _load_dataframe(file_bytes, file_path.suffix.lower())
+        records = _dataframe_to_records(dataframe)
+    except Exception:
+        current_app.logger.exception('Falha ao carregar planilha modelo da categoria %s', categoria)
+        return None
+
+    return {
+        'id': f'template::{categoria}',
+        'workflow_id': None,
+        'categoria': categoria,
+        'nome_arquivo': file_path.name,
+        'caminho_arquivo': str(file_path),
+        'dados_extraidos': records,
+        'created_at': datetime.utcnow().isoformat(),
+        'is_template': True
+    }
+
+
 @analise_jp_bp.route('/analise_jp/<int:workflow_id>')
 @login_required
 def analise_jp_view(workflow_id: int):
@@ -135,14 +174,30 @@ def listar_uploads(workflow_id: int, categoria: str):
     except ValueError as exc:
         return jsonify({'error': str(exc)}), 400
 
-    uploads = (
-        AnaliseUpload.query
-        .filter_by(workflow_id=workflow.id, categoria=categoria)
-        .order_by(AnaliseUpload.created_at.desc())
-        .all()
-    )
+    try:
+        uploads = (
+            AnaliseUpload.query
+            .filter_by(workflow_id=workflow.id, categoria=categoria)
+            .order_by(AnaliseUpload.created_at.desc())
+            .all()
+        )
+    except SQLAlchemyError:
+        current_app.logger.exception('Falha ao consultar uploads da categoria %s', categoria)
+        template_upload = _load_template_upload(categoria)
+        if template_upload:
+            return jsonify({
+                'uploads': [template_upload],
+                'warning': 'Não foi possível consultar os uploads salvos. Exibindo o modelo padrão da categoria.'
+            })
+        return jsonify({'error': 'Falha ao carregar uploads da categoria informada.'}), 500
 
-    return jsonify({'uploads': [upload.to_dict() for upload in uploads]})
+    uploads_data = [upload.to_dict() for upload in uploads]
+    if not uploads_data:
+        template_upload = _load_template_upload(categoria)
+        if template_upload:
+            uploads_data.append(template_upload)
+
+    return jsonify({'uploads': uploads_data})
 
 
 @analise_jp_bp.route('/analise_jp/<int:workflow_id>/upload/<string:categoria>', methods=['POST'])
@@ -166,6 +221,7 @@ def upload_categoria(workflow_id: int, categoria: str):
     except ValueError as exc:
         return jsonify({'error': str(exc)}), 400
     except Exception:
+        current_app.logger.exception('Falha ao processar upload da categoria %s', categoria)
         return jsonify({'error': 'Falha ao processar o arquivo enviado.'}), 500
 
     safe_name = secure_filename(arquivo.filename)

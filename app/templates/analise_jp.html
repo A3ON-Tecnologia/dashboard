@@ -300,13 +300,33 @@
             tableSubtitle.textContent = `Visualizando dados de ${slugToLabel(currentCategory)}.`;
             tableWrapper.classList.remove('hidden');
             tableEmptyState.classList.add('hidden');
-            activeUploadInfo.textContent = upload && upload.nome_arquivo ? `Arquivo selecionado: ${upload.nome_arquivo}` : '';
+
+            if (upload) {
+                const infoParts = [];
+                if (upload.nome_arquivo) {
+                    infoParts.push(`Arquivo selecionado: ${upload.nome_arquivo}`);
+                }
+                if (upload.is_template) {
+                    infoParts.push('Visualização do modelo padrão da categoria');
+                }
+                activeUploadInfo.textContent = infoParts.join(' • ');
+            } else {
+                activeUploadInfo.textContent = '';
+            }
+        }
+
+        function normalizeUploadId(value) {
+            if (value === null || value === undefined) {
+                return '';
+            }
+            return String(value);
         }
 
         function highlightActiveUpload(uploadId) {
+            const normalizedId = normalizeUploadId(uploadId);
             const items = uploadsList.querySelectorAll('button[data-upload-id]');
             items.forEach(item => {
-                if (parseInt(item.dataset.uploadId, 10) === uploadId) {
+                if (normalizeUploadId(item.dataset.uploadId) === normalizedId) {
                     item.classList.add('border-emerald-400', 'bg-emerald-500/10');
                 } else {
                     item.classList.remove('border-emerald-400', 'bg-emerald-500/10');
@@ -328,7 +348,8 @@
             uploads.forEach((upload, index) => {
                 const button = document.createElement('button');
                 button.type = 'button';
-                button.dataset.uploadId = upload.id;
+                const uploadId = normalizeUploadId(upload.id);
+                button.dataset.uploadId = uploadId;
                 button.className = 'w-full text-left px-5 py-4 rounded-2xl border border-white/10 bg-white/5 hover:border-emerald-400 transition-colors duration-300';
 
                 const name = document.createElement('p');
@@ -343,15 +364,15 @@
                 button.appendChild(meta);
 
                 button.addEventListener('click', () => {
-                    activeUploadId = upload.id;
+                    activeUploadId = uploadId;
                     renderTable(upload.dados_extraidos, upload);
-                    highlightActiveUpload(upload.id);
+                    highlightActiveUpload(uploadId);
                 });
 
                 uploadsList.appendChild(button);
 
-                if (index === 0 && (activeUploadId === null || !uploads.some(item => item.id === activeUploadId))) {
-                    activeUploadId = upload.id;
+                if (index === 0 && (activeUploadId === null || !uploads.some(item => normalizeUploadId(item.id) === activeUploadId))) {
+                    activeUploadId = uploadId;
                     renderTable(upload.dados_extraidos, upload);
                 }
             });
@@ -419,6 +440,9 @@
                         uploadsEmptyState.classList.remove('hidden');
                         return;
                     }
+                    if (data.warning) {
+                        showToast(data.warning, 'error');
+                    }
                     uploadsCache[category] = data.uploads || [];
                     renderUploads(category, uploadsCache[category]);
                 })
@@ -461,7 +485,8 @@
 
                     showToast(data.message || 'Upload realizado com sucesso!', 'success');
                     fileInput.value = '';
-                    uploadsCache[currentCategory] = [data.upload, ...(uploadsCache[currentCategory] || [])];
+                    const existingUploads = (uploadsCache[currentCategory] || []).filter(item => !item.is_template);
+                    uploadsCache[currentCategory] = [data.upload, ...existingUploads];
                     renderUploads(currentCategory, uploadsCache[currentCategory]);
                     highlightActiveCategoryButton();
                 })
