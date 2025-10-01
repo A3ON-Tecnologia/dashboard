@@ -173,12 +173,49 @@
 
     <div id="toastContainer" class="fixed bottom-6 right-6 z-[60] space-y-3"></div>
 
+    <div id="deleteModal" class="fixed inset-0 z-[70] hidden px-4 items-center justify-center">
+        <div id="deleteModalOverlay" class="absolute inset-0 bg-slate-950/70 backdrop-blur-sm"></div>
+        <div class="relative mx-auto w-full max-w-md glass-panel {{ theme.modal }} border border-white/10 rounded-3xl p-8 shadow-2xl shadow-emerald-500/20 flex flex-col gap-6">
+            <div class="flex items-start justify-between gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-500/10 text-red-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M4.5 19.5l7.5-15 7.5 15h-15z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <h2 class="text-xl font-semibold tracking-tight">Excluir upload</h2>
+                        <p id="deleteModalMessage" class="text-sm text-white/60 mt-1">Tem certeza que deseja excluir este upload?</p>
+                    </div>
+                </div>
+                <button id="deleteModalClose" type="button" class="p-2 rounded-full border border-transparent text-white/40 hover:text-white/80 hover:border-white/20 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/60">
+                Essa ação não poderá ser desfeita e removerá o arquivo selecionado da categoria atual.
+            </div>
+            <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
+                <button id="deleteModalCancel" type="button" class="w-full sm:w-auto {{ theme.buttons.secondary }} px-5 py-2.5 rounded-full text-sm uppercase tracking-wide">
+                    Cancelar
+                </button>
+                <button id="deleteModalConfirm" type="button" class="w-full sm:w-auto px-5 py-2.5 rounded-full text-sm uppercase tracking-wide bg-red-500/90 hover:bg-red-500 text-white transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
+                    <span id="deleteModalConfirmText">Excluir upload</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const workflowId = {{ workflow.id }};
         const categories = {{ categories | tojson }};
         let currentCategory = categories.length ? categories[0] : null;
         let uploadsCache = {};
         let activeUploadId = null;
+        let pendingDeleteCategory = null;
+        let pendingDeleteUploadId = null;
 
         const uploadButton = document.getElementById('uploadButton');
         const uploadSpinner = document.getElementById('uploadSpinner');
@@ -197,6 +234,13 @@
         const tableBody = document.getElementById('tableBody');
         const activeUploadInfo = document.getElementById('activeUploadInfo');
         const refreshButton = document.getElementById('refreshButton');
+        const deleteModal = document.getElementById('deleteModal');
+        const deleteModalMessage = document.getElementById('deleteModalMessage');
+        const deleteModalOverlay = document.getElementById('deleteModalOverlay');
+        const deleteModalClose = document.getElementById('deleteModalClose');
+        const deleteModalCancel = document.getElementById('deleteModalCancel');
+        const deleteModalConfirm = document.getElementById('deleteModalConfirm');
+        const deleteModalConfirmText = document.getElementById('deleteModalConfirmText');
 
         function slugToLabel(slug) {
             return slug
@@ -362,7 +406,7 @@
                 `;
                 deleteButton.addEventListener('click', (event) => {
                     event.stopPropagation();
-                    deleteUpload(category, upload.id);
+                    openDeleteModal(category, upload);
                 });
 
                 itemWrapper.appendChild(button);
@@ -382,9 +426,6 @@
         function deleteUpload(category, uploadId) {
             if (!category || !uploadId) return;
 
-            const confirmed = window.confirm('Tem certeza que deseja excluir este upload?');
-            if (!confirmed) return;
-
             fetch(`/analise_jp/${workflowId}/uploads/${category}/${uploadId}`, {
                 method: 'DELETE'
             })
@@ -392,6 +433,7 @@
                     const data = await response.json();
                     if (!response.ok) {
                         showToast(data.error || 'Falha ao excluir o upload.', 'error');
+                        setDeleteModalLoading(false);
                         return;
                     }
 
@@ -407,11 +449,72 @@
                     }
 
                     renderUploads(category, uploadsCache[category] || []);
+                    setDeleteModalLoading(false);
+                    closeDeleteModal();
                 })
                 .catch(() => {
                     showToast('Falha ao excluir o upload.', 'error');
+                    setDeleteModalLoading(false);
                 });
         }
+
+        function openDeleteModal(category, upload) {
+            pendingDeleteCategory = category;
+            pendingDeleteUploadId = upload?.id ?? null;
+            setDeleteModalLoading(false);
+
+            deleteModalMessage.textContent = upload?.nome_arquivo
+                ? `Tem certeza que deseja excluir o upload "${upload.nome_arquivo}"?`
+                : 'Tem certeza que deseja excluir este upload?';
+
+            deleteModal.classList.remove('hidden');
+            deleteModal.classList.add('flex');
+            deleteModal.setAttribute('aria-hidden', 'false');
+            document.body.classList.add('overflow-hidden');
+            deleteModalConfirm.focus();
+        }
+
+        function closeDeleteModal() {
+            pendingDeleteCategory = null;
+            pendingDeleteUploadId = null;
+            deleteModal.classList.add('hidden');
+            deleteModal.classList.remove('flex');
+            deleteModal.setAttribute('aria-hidden', 'true');
+            document.body.classList.remove('overflow-hidden');
+        }
+
+        function setDeleteModalLoading(isLoading) {
+            if (isLoading) {
+                deleteModalConfirm.disabled = true;
+                deleteModalConfirmText.textContent = 'Excluindo...';
+            } else {
+                deleteModalConfirm.disabled = false;
+                deleteModalConfirmText.textContent = 'Excluir upload';
+            }
+        }
+
+        const dismissDeleteModal = () => {
+            if (deleteModalConfirm.disabled) return;
+            closeDeleteModal();
+        };
+
+        deleteModalOverlay.addEventListener('click', dismissDeleteModal);
+        deleteModalClose.addEventListener('click', dismissDeleteModal);
+        deleteModalCancel.addEventListener('click', dismissDeleteModal);
+        deleteModalConfirm.addEventListener('click', () => {
+            if (!pendingDeleteCategory || !pendingDeleteUploadId) return;
+            setDeleteModalLoading(true);
+            deleteUpload(pendingDeleteCategory, pendingDeleteUploadId);
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && !deleteModal.classList.contains('hidden')) {
+                event.preventDefault();
+                if (!deleteModalConfirm.disabled) {
+                    closeDeleteModal();
+                }
+            }
+        });
 
         function setActiveCategory(category) {
             currentCategory = category;
