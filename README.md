@@ -16,6 +16,7 @@ Aplicacao Flask que oferece um dashboard moderno com autenticacao, troca de tema
 
 ## Como preparar o ambiente
 
+
 1. **Clonar o repositorio**
    ```bash
    git clone <URL_DO_REPO>
