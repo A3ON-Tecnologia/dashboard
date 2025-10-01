@@ -219,3 +219,41 @@ def upload_categoria(workflow_id: int, categoria: str):
     db.session.commit()
 
     return jsonify({'message': 'Upload realizado com sucesso!', 'upload': upload.to_dict()}), 201
+
+
+@analise_jp_bp.route(
+    '/analise_jp/<int:workflow_id>/uploads/<string:categoria>/<int:upload_id>',
+    methods=['DELETE']
+)
+@login_required
+def excluir_upload(workflow_id: int, categoria: str, upload_id: int):
+    workflow = _get_workflow_or_404(workflow_id)
+    if workflow.tipo != 'analise_jp':
+        return jsonify({'error': 'Workflow nao suporta exclusao de uploads de analise_jp.'}), 400
+
+    try:
+        _validate_category(categoria)
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+
+    upload = (
+        AnaliseUpload.query
+        .filter_by(id=upload_id, workflow_id=workflow.id, categoria=categoria)
+        .first()
+    )
+
+    if not upload:
+        return jsonify({'error': 'Upload nao encontrado.'}), 404
+
+    file_path = Path(upload.caminho_arquivo)
+    try:
+        if file_path.exists():
+            file_path.unlink()
+    except OSError:
+        current_app.logger.exception('Falha ao remover arquivo do upload %s', upload_id)
+        return jsonify({'error': 'Nao foi possivel remover o arquivo associado ao upload.'}), 500
+
+    db.session.delete(upload)
+    db.session.commit()
+
+    return jsonify({'message': 'Upload removido com sucesso.'}), 200

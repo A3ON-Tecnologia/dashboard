@@ -319,6 +319,7 @@
 
             if (!uploads.length) {
                 uploadsEmptyState.classList.remove('hidden');
+                activeUploadId = null;
                 clearTable();
                 return;
             }
@@ -326,10 +327,13 @@
             uploadsEmptyState.classList.add('hidden');
 
             uploads.forEach((upload, index) => {
+                const itemWrapper = document.createElement('div');
+                itemWrapper.className = 'flex items-center gap-3';
+
                 const button = document.createElement('button');
                 button.type = 'button';
                 button.dataset.uploadId = upload.id;
-                button.className = 'w-full text-left px-5 py-4 rounded-2xl border border-white/10 bg-white/5 hover:border-emerald-400 transition-colors duration-300';
+                button.className = 'flex-1 text-left px-5 py-4 rounded-2xl border border-white/10 bg-white/5 hover:border-emerald-400 transition-colors duration-300';
 
                 const name = document.createElement('p');
                 name.className = 'text-sm font-semibold text-white/80';
@@ -348,7 +352,23 @@
                     highlightActiveUpload(upload.id);
                 });
 
-                uploadsList.appendChild(button);
+                const deleteButton = document.createElement('button');
+                deleteButton.type = 'button';
+                deleteButton.className = 'p-2 rounded-2xl border border-transparent text-white/60 hover:text-red-400 hover:border-red-400 transition-colors';
+                deleteButton.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                `;
+                deleteButton.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    deleteUpload(category, upload.id);
+                });
+
+                itemWrapper.appendChild(button);
+                itemWrapper.appendChild(deleteButton);
+
+                uploadsList.appendChild(itemWrapper);
 
                 if (index === 0 && (activeUploadId === null || !uploads.some(item => item.id === activeUploadId))) {
                     activeUploadId = upload.id;
@@ -357,6 +377,40 @@
             });
 
             highlightActiveUpload(activeUploadId);
+        }
+
+        function deleteUpload(category, uploadId) {
+            if (!category || !uploadId) return;
+
+            const confirmed = window.confirm('Tem certeza que deseja excluir este upload?');
+            if (!confirmed) return;
+
+            fetch(`/analise_jp/${workflowId}/uploads/${category}/${uploadId}`, {
+                method: 'DELETE'
+            })
+                .then(async response => {
+                    const data = await response.json();
+                    if (!response.ok) {
+                        showToast(data.error || 'Falha ao excluir o upload.', 'error');
+                        return;
+                    }
+
+                    showToast(data.message || 'Upload removido com sucesso.');
+
+                    if (uploadsCache[category]) {
+                        uploadsCache[category] = uploadsCache[category].filter(item => item.id !== uploadId);
+                    }
+
+                    if (activeUploadId === uploadId) {
+                        activeUploadId = null;
+                        clearTable();
+                    }
+
+                    renderUploads(category, uploadsCache[category] || []);
+                })
+                .catch(() => {
+                    showToast('Falha ao excluir o upload.', 'error');
+                });
         }
 
         function setActiveCategory(category) {
