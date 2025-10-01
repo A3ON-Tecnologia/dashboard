@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerar Gráficos - {{ workflow.nome }}</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <h1>Gerar Gráficos para {{ workflow.nome }}</h1>
+    <form id="chartForm">
+        <label for="category">Selecione a Categoria:</label>
+        <select id="category" name="category">
+            {% for category in categories %}
+                <option value="{{ category }}">{{ category }}</option>
+            {% endfor %}
+        </select>
+
+        <label for="chartType">Selecione o Tipo de Gráfico:</label>
+        <select id="chartType" name="chartType">
+            <option value="bar">Barra</option>
+            <option value="line">Linha</option>
+            <option value="pie">Pizza</option>
+        </select>
+
+        <button type="button" onclick="generateChart()">Gerar Gráfico</button>
+    </form>
+
+    <canvas id="chartCanvas"></canvas>
+
+    <script>
+        function generateChart() {
+            const category = document.getElementById('category').value;
+            const chartType = document.getElementById('chartType').value;
+
+            // Simulação de dados - Substituir com dados reais da categoria
+            const data = {
+                labels: ['Janeiro', 'Fevereiro', 'Março'],
+                datasets: [{
+                    label: category,
+                    data: [10, 20, 30],
+                    backgroundColor: ['red', 'blue', 'green']
+                }]
+            };
+
+            const config = {
+                type: chartType,
+                data: data
+            };
+
+            new Chart(
+                document.getElementById('chartCanvas'),
+                config
+            );
+        }
+    </script>
+</body>
+</html>

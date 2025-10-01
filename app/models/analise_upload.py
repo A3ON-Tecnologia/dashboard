@@ -22,6 +22,7 @@ class AnaliseUpload(db.Model):
         backref=db.backref('analise_uploads', lazy='dynamic', cascade='all, delete-orphan')
     )
 
+
     def to_dict(self):
         return {
             'id': self.id,
