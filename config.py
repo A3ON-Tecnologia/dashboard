@@ -1,5 +1,6 @@
-﻿import os
+import os
 from pathlib import Path
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -14,3 +15,4 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER') or str(DEFAULT_UPLOAD_DIR)
     MAX_CONTENT_LENGTH = int(os.environ.get('MAX_UPLOAD_SIZE_MB', 15)) * 1024 * 1024
+    ANALISE_JP_TEMPLATE_DIR = os.environ.get('ANALISE_JP_TEMPLATE_DIR') or str(BASE_DIR / 'planilhas_csv')

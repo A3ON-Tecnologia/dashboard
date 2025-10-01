@@ -1,10 +1,12 @@
-﻿import os
+import os
 from pathlib import Path
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
+
 from flask import Flask
 from flask_login import LoginManager
 from flask_migrate import Migrate
+
 from config import Config
 from app.models.user import db, User
 from app.models.dashboard import Dashboard

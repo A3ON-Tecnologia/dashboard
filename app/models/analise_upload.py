@@ -28,7 +28,8 @@ class AnaliseUpload(db.Model):
             'nome_arquivo': self.nome_arquivo,
             'caminho_arquivo': self.caminho_arquivo,
             'dados_extraidos': self.dados_extraidos,
-            'created_at': self.created_at.isoformat() if self.created_at else None
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'is_template': False
         }
 
     @staticmethod
