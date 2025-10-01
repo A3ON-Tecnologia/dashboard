@@ -119,6 +119,9 @@
                                     <button id="refreshButton" class="hidden {{ theme.buttons.secondary }} px-4 py-2.5 rounded-full text-sm uppercase tracking-wide transition-transform duration-300 hover:-translate-y-0.5">
                                         Atualizar lista
                                     </button>
+                                    <button id="chartsButton" class="{{ theme.buttons.secondary }} px-5 py-2.5 rounded-full text-sm uppercase tracking-wide transition-transform duration-300 hover:-translate-y-0.5">
+                                        Área de gráficos
+                                    </button>
                                     <button id="uploadButton" class="{{ theme.buttons.primary }} px-5 py-2.5 rounded-full text-sm uppercase tracking-wide flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
                                         <span>Enviar arquivo</span>
                                         <span id="uploadSpinner" class="hidden w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
@@ -211,6 +214,7 @@
     <script>
         const workflowId = {{ workflow.id }};
         const categories = {{ categories | tojson }};
+        const chartsViewUrl = "{{ url_for('analise_jp.analise_jp_charts_view', workflow_id=workflow.id) }}";
         let currentCategory = categories.length ? categories[0] : null;
         let uploadsCache = {};
         let activeUploadId = null;
@@ -234,6 +238,7 @@
         const tableBody = document.getElementById('tableBody');
         const activeUploadInfo = document.getElementById('activeUploadInfo');
         const refreshButton = document.getElementById('refreshButton');
+        const chartsButton = document.getElementById('chartsButton');
         const deleteModal = document.getElementById('deleteModal');
         const deleteModalMessage = document.getElementById('deleteModalMessage');
         const deleteModalOverlay = document.getElementById('deleteModalOverlay');
@@ -651,17 +656,25 @@
                 });
             }
 
+            if (chartsButton && chartsViewUrl) {
+                chartsButton.addEventListener('click', () => {
+                    window.location.href = chartsViewUrl;
+                });
+            }
+
             fileInput.addEventListener('change', () => {
                 if (fileInput.files && fileInput.files[0]) {
                     uploadFileForCategory();
                 }
             });
 
-            refreshButton.addEventListener('click', () => {
-                if (currentCategory) {
-                    loadUploads(currentCategory);
-                }
-            });
+            if (refreshButton) {
+                refreshButton.addEventListener('click', () => {
+                    if (currentCategory) {
+                        loadUploads(currentCategory);
+                    }
+                });
+            }
         }
 
         function logout() {
