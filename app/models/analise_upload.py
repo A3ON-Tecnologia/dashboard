@@ -1,6 +1,7 @@
 from datetime import datetime
 from pathlib import Path
 
+
 from app import db
 
 
@@ -14,6 +15,7 @@ class AnaliseUpload(db.Model):
     caminho_arquivo = db.Column(db.String(500), nullable=False)
     dados_extraidos = db.Column(db.JSON, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    data_upload = db.Column(db.DateTime, default=datetime.utcnow)
 
     workflow = db.relationship(
         'Workflow',
@@ -30,6 +32,7 @@ class AnaliseUpload(db.Model):
             'dados_extraidos': self.dados_extraidos,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'is_template': False
+            'data_upload': self.data_upload.isoformat() if self.data_upload else None
         }
 
     @staticmethod
