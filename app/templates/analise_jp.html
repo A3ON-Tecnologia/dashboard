@@ -165,6 +165,23 @@
                                     <tbody id="tableBody" class="divide-y divide-white/5 text-sm"></tbody>
                                 </table>
                             </div>
+                            <div id="hiddenRowsSection" class="hidden border border-white/10 rounded-2xl p-5 space-y-4 bg-white/5">
+                                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                    <div>
+                                        <h4 class="text-sm font-semibold text-white/80 flex items-center gap-2">
+                                            Linhas ocultas
+                                            <span id="hiddenRowsCount" class="text-xs font-medium text-white/50"></span>
+                                        </h4>
+                                        <p id="hiddenRowsDescription" class="text-xs text-white/60 mt-1">
+                                            Linhas ocultadas não serão exibidas na tabela nem utilizadas na criação de gráficos desta categoria.
+                                        </p>
+                                    </div>
+                                    <button id="restoreAllHidden" class="hidden {{ theme.buttons.secondary }} px-4 py-2 rounded-full text-xs uppercase tracking-wide">
+                                        Restaurar todas
+                                    </button>
+                                </div>
+                                <div id="hiddenRowsList" class="space-y-2"></div>
+                            </div>
                         </div>
                     </div>
                 </section>
@@ -237,6 +254,13 @@
         const tableHead = document.getElementById('tableHead');
         const tableBody = document.getElementById('tableBody');
         const activeUploadInfo = document.getElementById('activeUploadInfo');
+        const tableEmptyStateMessage = tableEmptyState ? tableEmptyState.querySelector('p:last-child') : null;
+        const hiddenRowsSection = document.getElementById('hiddenRowsSection');
+        const hiddenRowsList = document.getElementById('hiddenRowsList');
+        const hiddenRowsCount = document.getElementById('hiddenRowsCount');
+        const hiddenRowsDescription = document.getElementById('hiddenRowsDescription');
+        const defaultHiddenRowsDescription = hiddenRowsDescription ? hiddenRowsDescription.textContent : '';
+        const restoreAllHiddenButton = document.getElementById('restoreAllHidden');
         const refreshButton = document.getElementById('refreshButton');
         const chartsButton = document.getElementById('chartsButton');
         const deleteModal = document.getElementById('deleteModal');
@@ -309,15 +333,34 @@
             tableEmptyState.classList.remove('hidden');
             tableSubtitle.textContent = 'Selecione um upload para visualizar os dados extraídos.';
             activeUploadInfo.textContent = '';
+            if (tableEmptyStateMessage) {
+                tableEmptyStateMessage.textContent = 'Nenhum upload selecionado.';
+            }
+            if (hiddenRowsSection) {
+                hiddenRowsSection.classList.add('hidden');
+            }
+            if (hiddenRowsList) {
+                hiddenRowsList.innerHTML = '';
+            }
+            if (hiddenRowsCount) {
+                hiddenRowsCount.textContent = '';
+            }
+            if (hiddenRowsDescription) {
+                hiddenRowsDescription.textContent = defaultHiddenRowsDescription;
+                hiddenRowsDescription.classList.remove('text-amber-200');
+            }
+            if (restoreAllHiddenButton) {
+                restoreAllHiddenButton.classList.add('hidden');
+                restoreAllHiddenButton.disabled = false;
+            }
         }
 
         function renderTable(records, upload) {
-            if (!records || !records.length) {
-                clearTable();
+            if (!records || !records.length || !upload) {
                 return;
             }
 
-            const columns = Object.keys(records[0]);
+            const columns = Object.keys(records[0]).filter(column => !column.startsWith('__'));
             tableHead.innerHTML = '';
             tableBody.innerHTML = '';
 
@@ -328,6 +371,12 @@
                 th.className = 'px-4 py-3 text-left';
                 headerRow.appendChild(th);
             });
+
+            const actionTh = document.createElement('th');
+            actionTh.textContent = 'Ações';
+            actionTh.className = 'px-4 py-3 text-right';
+            headerRow.appendChild(actionTh);
+
             tableHead.appendChild(headerRow);
 
             records.forEach(record => {
@@ -343,13 +392,29 @@
                     td.className = 'px-4 py-3 align-top';
                     tr.appendChild(td);
                 });
+
+                const actionTd = document.createElement('td');
+                actionTd.className = 'px-4 py-3 text-right align-top';
+
+                const hideButton = document.createElement('button');
+                hideButton.type = 'button';
+                hideButton.className = 'text-xs uppercase tracking-widest px-3 py-1.5 rounded-full border border-white/10 hover:border-rose-400 hover:text-rose-300 transition-colors';
+                hideButton.textContent = 'Ocultar';
+                hideButton.addEventListener('click', () => {
+                    if (hideButton.disabled) return;
+                    hideButton.disabled = true;
+                    hideButton.classList.add('opacity-60');
+                    hideRow(upload, record.__rowIndex)
+                        .finally(() => {
+                            hideButton.disabled = false;
+                            hideButton.classList.remove('opacity-60');
+                        });
+                });
+
+                actionTd.appendChild(hideButton);
+                tr.appendChild(actionTd);
                 tableBody.appendChild(tr);
             });
-
-            tableSubtitle.textContent = `Visualizando dados de ${slugToLabel(currentCategory)}.`;
-            tableWrapper.classList.remove('hidden');
-            tableEmptyState.classList.add('hidden');
-            activeUploadInfo.textContent = upload && upload.nome_arquivo ? `Arquivo selecionado: ${upload.nome_arquivo}` : '';
         }
 
         function highlightActiveUpload(uploadId) {
@@ -368,14 +433,21 @@
 
             if (!uploads.length) {
                 uploadsEmptyState.classList.remove('hidden');
-                activeUploadId = null;
-                clearTable();
+                if (category === currentCategory) {
+                    activeUploadId = null;
+                    clearTable();
+                }
                 return;
             }
 
             uploadsEmptyState.classList.add('hidden');
+            uploads.forEach(normaliseUpload);
 
-            uploads.forEach((upload, index) => {
+            if (!uploads.some(upload => upload.id === activeUploadId)) {
+                activeUploadId = uploads[0]?.id ?? null;
+            }
+
+            uploads.forEach(upload => {
                 const itemWrapper = document.createElement('div');
                 itemWrapper.className = 'flex items-center gap-3';
 
@@ -396,9 +468,7 @@
                 button.appendChild(meta);
 
                 button.addEventListener('click', () => {
-                    activeUploadId = upload.id;
-                    renderTable(upload.dados_extraidos, upload);
-                    highlightActiveUpload(upload.id);
+                    selectUpload(upload.id);
                 });
 
                 const deleteButton = document.createElement('button');
@@ -418,14 +488,316 @@
                 itemWrapper.appendChild(deleteButton);
 
                 uploadsList.appendChild(itemWrapper);
-
-                if (index === 0 && (activeUploadId === null || !uploads.some(item => item.id === activeUploadId))) {
-                    activeUploadId = upload.id;
-                    renderTable(upload.dados_extraidos, upload);
-                }
             });
 
-            highlightActiveUpload(activeUploadId);
+            if (category === currentCategory && activeUploadId !== null) {
+                selectUpload(activeUploadId);
+            } else {
+                highlightActiveUpload(activeUploadId);
+            }
+        }
+
+        function normaliseUpload(upload) {
+            if (!upload) {
+                return upload;
+            }
+
+            if (!Array.isArray(upload.dados_extraidos)) {
+                upload.dados_extraidos = [];
+            }
+
+            const hiddenValues = Array.isArray(upload.linhas_ocultas) ? upload.linhas_ocultas : [];
+            const cleanedHidden = hiddenValues
+                .map(value => Number.parseInt(value, 10))
+                .filter(index => Number.isInteger(index) && index >= 0)
+                .sort((a, b) => a - b);
+
+            const uniqueHidden = Array.from(new Set(cleanedHidden));
+            upload.linhas_ocultas = uniqueHidden;
+            return upload;
+        }
+
+        function prepareRecords(upload, options = {}) {
+            if (!upload || !Array.isArray(upload.dados_extraidos)) {
+                return [];
+            }
+
+            const includeHidden = Boolean(options.includeHidden);
+            const hiddenSet = new Set(
+                Array.isArray(upload.linhas_ocultas)
+                    ? upload.linhas_ocultas.map(value => Number.parseInt(value, 10)).filter(Number.isInteger)
+                    : []
+            );
+
+            return upload.dados_extraidos.map((row, index) => {
+                const entry = { __rowIndex: index, __hidden: hiddenSet.has(index) };
+
+                if (row && typeof row === 'object' && !Array.isArray(row)) {
+                    Object.keys(row).forEach(key => {
+                        entry[key] = row[key];
+                    });
+                }
+
+                return entry;
+            }).filter(record => includeHidden ? true : !record.__hidden);
+        }
+
+        function updateActiveUploadInfo(upload) {
+            if (!activeUploadInfo) {
+                return;
+            }
+
+            if (!upload) {
+                activeUploadInfo.textContent = '';
+                return;
+            }
+
+            const parts = [];
+            if (upload.nome_arquivo) {
+                parts.push(`Arquivo selecionado: ${upload.nome_arquivo}`);
+            }
+
+            const hiddenCount = Array.isArray(upload.linhas_ocultas) ? upload.linhas_ocultas.length : 0;
+            if (hiddenCount > 0) {
+                parts.push(hiddenCount === 1 ? '1 linha ocultada' : `${hiddenCount} linhas ocultadas`);
+            }
+
+            activeUploadInfo.textContent = parts.join(' • ');
+        }
+
+        function renderHiddenRows(upload) {
+            if (!hiddenRowsSection || !hiddenRowsList) {
+                return;
+            }
+
+            const hiddenRecords = prepareRecords(upload, { includeHidden: true }).filter(record => record.__hidden);
+            hiddenRowsList.innerHTML = '';
+
+            if (!hiddenRecords.length) {
+                hiddenRowsSection.classList.add('hidden');
+                if (hiddenRowsCount) {
+                    hiddenRowsCount.textContent = '';
+                }
+                if (hiddenRowsDescription) {
+                    hiddenRowsDescription.textContent = defaultHiddenRowsDescription;
+                    hiddenRowsDescription.classList.remove('text-amber-200');
+                }
+                if (restoreAllHiddenButton) {
+                    restoreAllHiddenButton.classList.add('hidden');
+                    restoreAllHiddenButton.disabled = false;
+                    restoreAllHiddenButton.onclick = null;
+                }
+                return;
+            }
+
+            hiddenRowsSection.classList.remove('hidden');
+            if (hiddenRowsCount) {
+                hiddenRowsCount.textContent = hiddenRecords.length === 1
+                    ? '(1 linha)'
+                    : `(${hiddenRecords.length} linhas)`;
+            }
+            if (hiddenRowsDescription) {
+                hiddenRowsDescription.textContent = 'As linhas abaixo foram ocultadas e não aparecerão na tabela ou nos gráficos.';
+                hiddenRowsDescription.classList.add('text-amber-200');
+            }
+
+            const previewFields = Object.keys(hiddenRecords[0]).filter(key => !key.startsWith('__'));
+
+            hiddenRecords.forEach(record => {
+                const item = document.createElement('div');
+                item.className = 'flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3';
+
+                const preview = document.createElement('div');
+                preview.className = 'text-sm text-white/70';
+                const previewValues = previewFields
+                    .map(field => record[field])
+                    .filter(value => value !== null && value !== undefined && String(value).trim() !== '')
+                    .slice(0, 3);
+                preview.textContent = previewValues.length
+                    ? previewValues.join(' • ')
+                    : `Linha ${record.__rowIndex + 1}`;
+
+                const actionsWrapper = document.createElement('div');
+                actionsWrapper.className = 'flex items-center gap-2 justify-end sm:justify-start';
+
+                const restoreButton = document.createElement('button');
+                restoreButton.type = 'button';
+                restoreButton.className = 'text-xs uppercase tracking-widest px-3 py-1.5 rounded-full border border-white/10 hover:border-emerald-400 hover:text-emerald-200 transition-colors';
+                restoreButton.textContent = 'Restaurar linha';
+                restoreButton.addEventListener('click', () => {
+                    if (restoreButton.disabled) return;
+                    restoreButton.disabled = true;
+                    restoreHiddenRows(upload, [record.__rowIndex])
+                        .finally(() => {
+                            restoreButton.disabled = false;
+                        });
+                });
+
+                actionsWrapper.appendChild(restoreButton);
+                item.appendChild(preview);
+                item.appendChild(actionsWrapper);
+
+                hiddenRowsList.appendChild(item);
+            });
+
+            if (restoreAllHiddenButton) {
+                restoreAllHiddenButton.classList.remove('hidden');
+                restoreAllHiddenButton.disabled = false;
+                restoreAllHiddenButton.onclick = () => {
+                    if (restoreAllHiddenButton.disabled) return;
+                    restoreAllHiddenButton.disabled = true;
+                    const indices = hiddenRecords.map(record => record.__rowIndex);
+                    restoreHiddenRows(upload, indices)
+                        .finally(() => {
+                            restoreAllHiddenButton.disabled = false;
+                        });
+                };
+            }
+        }
+
+        function renderTableForUpload(upload) {
+            if (!upload) {
+                clearTable();
+                return;
+            }
+
+            normaliseUpload(upload);
+
+            const visibleRecords = prepareRecords(upload);
+            const hiddenCount = Array.isArray(upload.linhas_ocultas) ? upload.linhas_ocultas.length : 0;
+
+            if (!visibleRecords.length) {
+                tableHead.innerHTML = '';
+                tableBody.innerHTML = '';
+                tableWrapper.classList.add('hidden');
+                tableEmptyState.classList.remove('hidden');
+                if (tableEmptyStateMessage) {
+                    tableEmptyStateMessage.textContent = hiddenCount
+                        ? 'Todas as linhas deste upload estão ocultas. Utilize a seção abaixo para restaurá-las.'
+                        : 'Nenhum dado disponível para este upload.';
+                }
+                tableSubtitle.textContent = hiddenCount
+                    ? 'Todas as linhas visíveis foram ocultadas para esta categoria.'
+                    : 'Nenhum dado disponível para este upload.';
+            } else {
+                renderTable(visibleRecords, upload);
+                tableWrapper.classList.remove('hidden');
+                tableEmptyState.classList.add('hidden');
+                if (tableEmptyStateMessage) {
+                    tableEmptyStateMessage.textContent = 'Nenhum upload selecionado.';
+                }
+                tableSubtitle.textContent = `Visualizando dados de ${slugToLabel(currentCategory)}.`;
+            }
+
+            updateActiveUploadInfo(upload);
+            renderHiddenRows(upload);
+        }
+
+        function buildHiddenRowsUrl(upload) {
+            if (!upload || !upload.id) {
+                return null;
+            }
+            const categoria = upload.categoria || currentCategory;
+            if (!categoria) {
+                return null;
+            }
+            return `/analise_jp/${workflowId}/uploads/${encodeURIComponent(categoria)}/${upload.id}/linhas_ocultas`;
+        }
+
+        function updateRowVisibility(upload, indices, action) {
+            const url = buildHiddenRowsUrl(upload);
+            if (!url || !Array.isArray(indices) || !indices.length) {
+                return Promise.reject(new Error('Não foi possível atualizar a visibilidade da linha selecionada.'));
+            }
+
+            return fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ acao: action, indices })
+            })
+                .then(async response => {
+                    const data = await response.json().catch(() => ({}));
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Falha ao atualizar a visibilidade da linha.');
+                    }
+
+                    const normalisedHidden = Array.isArray(data.linhas_ocultas)
+                        ? data.linhas_ocultas
+                            .map(value => Number.parseInt(value, 10))
+                            .filter(index => Number.isInteger(index) && index >= 0)
+                            .sort((a, b) => a - b)
+                        : [];
+
+                    upload.linhas_ocultas = normalisedHidden;
+
+                    const categoria = upload.categoria || currentCategory;
+                    if (categoria && Array.isArray(uploadsCache[categoria])) {
+                        const cachedUpload = uploadsCache[categoria].find(item => item.id === upload.id);
+                        if (cachedUpload && cachedUpload !== upload) {
+                            cachedUpload.linhas_ocultas = [...normalisedHidden];
+                        }
+                    }
+
+                    renderTableForUpload(upload);
+                    highlightActiveUpload(upload.id);
+                    showToast(data.message || 'Linhas atualizadas com sucesso.');
+                    return data;
+                })
+                .catch(error => {
+                    showToast(error.message || 'Falha ao atualizar a visibilidade da linha.', 'error');
+                    throw error;
+                });
+        }
+
+        function hideRow(upload, rowIndex) {
+            if (!upload) {
+                return Promise.resolve();
+            }
+
+            const targetIndex = Number.parseInt(rowIndex, 10);
+            if (!Number.isInteger(targetIndex)) {
+                return Promise.resolve();
+            }
+
+            return updateRowVisibility(upload, [targetIndex], 'ocultar');
+        }
+
+        function restoreHiddenRows(upload, indices) {
+            if (!upload) {
+                return Promise.resolve();
+            }
+
+            const values = Array.isArray(indices) ? indices : [indices];
+            const cleaned = values
+                .map(value => Number.parseInt(value, 10))
+                .filter(Number.isInteger);
+
+            if (!cleaned.length) {
+                return Promise.resolve();
+            }
+
+            return updateRowVisibility(upload, cleaned, 'restaurar');
+        }
+
+        function selectUpload(uploadId) {
+            const uploads = uploadsCache[currentCategory] || [];
+            const upload = uploads.find(item => item.id === uploadId);
+
+            if (!upload) {
+                if (uploads.length) {
+                    activeUploadId = uploads[0].id;
+                    highlightActiveUpload(activeUploadId);
+                    renderTableForUpload(uploads[0]);
+                } else {
+                    activeUploadId = null;
+                    clearTable();
+                }
+                return;
+            }
+
+            activeUploadId = uploadId;
+            highlightActiveUpload(uploadId);
+            renderTableForUpload(upload);
         }
 
         function deleteUpload(category, uploadId) {
@@ -581,8 +953,9 @@
                         uploadsEmptyState.classList.remove('hidden');
                         return;
                     }
-                    uploadsCache[category] = data.uploads || [];
-                    renderUploads(category, uploadsCache[category]);
+                    const uploads = (data.uploads || []).map(upload => normaliseUpload(upload));
+                    uploadsCache[category] = uploads;
+                    renderUploads(category, uploads);
                 })
                 .catch(() => {
                     showToast('Falha ao carregar uploads.', 'error');
@@ -623,7 +996,9 @@
 
                     showToast(data.message || 'Upload realizado com sucesso!', 'success');
                     fileInput.value = '';
-                    uploadsCache[currentCategory] = [data.upload, ...(uploadsCache[currentCategory] || [])];
+                    const newUpload = normaliseUpload(data.upload);
+                    uploadsCache[currentCategory] = [newUpload, ...(uploadsCache[currentCategory] || [])];
+                    activeUploadId = newUpload.id;
                     renderUploads(currentCategory, uploadsCache[currentCategory]);
                     highlightActiveCategoryButton();
                 })

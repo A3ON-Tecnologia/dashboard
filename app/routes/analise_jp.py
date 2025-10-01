@@ -1,7 +1,7 @@
 import io
 from datetime import datetime
 from pathlib import Path
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Iterable, Set
 
 import pandas as pd
 from flask import Blueprint, current_app, jsonify, redirect, render_template, request, url_for
@@ -62,6 +62,39 @@ def _get_latest_upload_for_category(workflow_id: int, categoria: str) -> Optiona
         .order_by(AnaliseUpload.created_at.desc())
         .first()
     )
+
+
+def _normalise_indices(values: Iterable) -> List[int]:
+    indices: Set[int] = set()
+    for value in values or []:
+        try:
+            index = int(value)
+        except (TypeError, ValueError):
+            continue
+        if index < 0:
+            continue
+        indices.add(index)
+    return sorted(indices)
+
+
+def _get_hidden_index_set(upload: Optional[AnaliseUpload]) -> Set[int]:
+    if not upload or not upload.linhas_ocultas:
+        return set()
+    return set(_normalise_indices(upload.linhas_ocultas))
+
+
+def _get_visible_records(upload: Optional[AnaliseUpload]) -> List[dict]:
+    if not upload or not isinstance(upload.dados_extraidos, list):
+        return []
+
+    hidden_indices = _get_hidden_index_set(upload)
+    visible: List[dict] = []
+    for index, record in enumerate(upload.dados_extraidos):
+        if index in hidden_indices:
+            continue
+        if isinstance(record, dict):
+            visible.append(record)
+    return visible
 
 
 def _decode_csv_bytes(data: bytes) -> io.StringIO:
@@ -187,10 +220,11 @@ def analise_jp_charts_view(workflow_id: int):
     categories_meta = []
     for categoria in ANALISE_JP_CATEGORIES:
         latest_upload = _get_latest_upload_for_category(workflow.id, categoria)
+        visible_records = _get_visible_records(latest_upload)
         categories_meta.append({
             'slug': categoria,
             'label': _slug_to_label(categoria),
-            'has_data': bool(latest_upload and latest_upload.dados_extraidos),
+            'has_data': bool(visible_records),
             'latest_upload': None if not latest_upload else {
                 'id': latest_upload.id,
                 'nome_arquivo': latest_upload.nome_arquivo,
@@ -248,8 +282,11 @@ def obter_dataset_categoria(workflow_id: int, categoria: str):
         return jsonify({'error': 'Nenhum upload encontrado para a categoria selecionada.'}), 404
 
     records = upload.dados_extraidos if isinstance(upload.dados_extraidos, list) else []
+    visible_records = _get_visible_records(upload)
+    total_records = len(records)
     fields: List[str] = []
-    for record in records:
+    reference_records = visible_records if visible_records else records
+    for record in reference_records:
         if isinstance(record, dict):
             fields = list(record.keys())
             break
@@ -257,9 +294,12 @@ def obter_dataset_categoria(workflow_id: int, categoria: str):
     return jsonify({
         'categoria': categoria,
         'categoria_label': _slug_to_label(categoria),
-        'record_count': len(records),
+        'record_count': len(visible_records),
+        'total_records': total_records,
+        'hidden_count': total_records - len(visible_records),
+        'linhas_ocultas': _normalise_indices(upload.linhas_ocultas or []),
         'fields': fields,
-        'records': records,
+        'records': visible_records,
         'upload': {
             'id': upload.id,
             'nome_arquivo': upload.nome_arquivo,
@@ -305,7 +345,8 @@ def upload_categoria(workflow_id: int, categoria: str):
         categoria=categoria,
         nome_arquivo=safe_name,
         caminho_arquivo=str(destination),
-        dados_extraidos=registros
+        dados_extraidos=registros,
+        linhas_ocultas=[]
     )
 
     db.session.add(upload)
@@ -350,6 +391,80 @@ def excluir_upload(workflow_id: int, categoria: str, upload_id: int):
     db.session.commit()
 
     return jsonify({'message': 'Upload removido com sucesso.'}), 200
+
+
+@analise_jp_bp.route(
+    '/analise_jp/<int:workflow_id>/uploads/<string:categoria>/<int:upload_id>/linhas_ocultas',
+    methods=['POST']
+)
+@login_required
+def atualizar_linhas_ocultas(workflow_id: int, categoria: str, upload_id: int):
+    workflow = _get_workflow_or_404(workflow_id)
+    try:
+        _validate_category(categoria)
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+
+    upload = (
+        AnaliseUpload.query
+        .filter_by(id=upload_id, workflow_id=workflow.id, categoria=categoria)
+        .first()
+    )
+
+    if not upload:
+        return jsonify({'error': 'Upload nao encontrado.'}), 404
+
+    payload = request.get_json() or {}
+    action = (payload.get('acao') or '').strip().lower()
+    indices = payload.get('indices')
+
+    if action not in {'ocultar', 'restaurar'}:
+        return jsonify({'error': 'Acao invalida. Utilize "ocultar" ou "restaurar".'}), 400
+
+    if not isinstance(indices, list):
+        return jsonify({'error': 'Informe os indices das linhas.'}), 400
+
+    total_records = len(upload.dados_extraidos or [])
+    cleaned_indices = []
+    for value in indices:
+        try:
+            index = int(value)
+        except (TypeError, ValueError):
+            continue
+        if index < 0 or index >= total_records:
+            continue
+        cleaned_indices.append(index)
+
+    if not cleaned_indices:
+        return jsonify({'error': 'Nenhuma linha valida informada.'}), 400
+
+    hidden_indices = _get_hidden_index_set(upload)
+
+    if action == 'ocultar':
+        hidden_indices.update(cleaned_indices)
+        message = 'Linha ocultada com sucesso.' if len(cleaned_indices) == 1 else 'Linhas ocultadas com sucesso.'
+    else:
+        hidden_indices.difference_update(cleaned_indices)
+        message = 'Linha restaurada com sucesso.' if len(cleaned_indices) == 1 else 'Linhas restauradas com sucesso.'
+
+    upload.linhas_ocultas = sorted(hidden_indices)
+
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception('Falha ao atualizar linhas ocultas do upload %s', upload_id)
+        return jsonify({'error': 'Nao foi possivel atualizar as linhas ocultas.'}), 500
+
+    visible_records = _get_visible_records(upload)
+
+    return jsonify({
+        'message': message,
+        'linhas_ocultas': upload.linhas_ocultas,
+        'registros_visiveis': visible_records,
+        'total_registros': total_records,
+        'hidden_count': total_records - len(visible_records)
+    })
 
 
 @analise_jp_bp.route('/analise_jp/<int:workflow_id>/api/graficos', methods=['GET'])
