@@ -11,6 +11,7 @@ import sqlalchemy as sa
 from sqlalchemy import inspect
 
 
+
 # revision identifiers, used by Alembic.
 revision = '1a2b3c4d5e6f'
 down_revision = 'b0c1d2e3f4a5'
@@ -44,6 +45,14 @@ def upgrade():
         'linhas_ocultas',
         existing_type=json_type,
         nullable=False,
+    op.add_column(
+        'analise_uploads',
+        sa.Column('linhas_ocultas', sa.JSON(), nullable=False, server_default=sa.text("'[]'"))
+    )
+    op.alter_column(
+        'analise_uploads',
+        'linhas_ocultas',
+        server_default=None
     )
 
 
@@ -54,3 +63,4 @@ def downgrade():
 
     if 'linhas_ocultas' in existing_columns:
         op.drop_column('analise_uploads', 'linhas_ocultas')
+    op.drop_column('analise_uploads', 'linhas_ocultas')
