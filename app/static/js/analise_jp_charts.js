@@ -9,6 +9,15 @@ const state = {
 
 const chartInstances = new Map();
 
+const CHART_TYPE_LABELS = {
+    bar: 'Barras verticais',
+    horizontal_bar: 'Barras horizontais',
+    line: 'Linha',
+    pie: 'Pizza',
+    doughnut: 'Rosquinha',
+    radar: 'Radar'
+};
+
 const elements = {
     chartsGrid: document.getElementById('chartsGrid'),
     chartsEmptyState: document.getElementById('chartsEmptyState'),
@@ -54,11 +63,25 @@ function slugToLabel(slug) {
         .join(' ');
 }
 
+function getChartTypeLabel(type) {
+    if (!type) return '';
+    return CHART_TYPE_LABELS[type] || slugToLabel(type.replace('polararea', 'polar_area'));
+}
+
 function getPalette() {
     if (Array.isArray(ctx.themePalette) && ctx.themePalette.length) {
         return ctx.themePalette;
     }
     return DEFAULT_PALETTE;
+}
+
+function getChartJsType(chartType) {
+    if (!chartType) return 'bar';
+    return chartType === 'horizontal_bar' ? 'bar' : chartType;
+}
+
+function isHorizontalBar(chartType) {
+    return chartType === 'horizontal_bar';
 }
 
 function showToast(message, type = 'success') {
@@ -159,7 +182,7 @@ function populateChartTypes() {
     types.forEach((type) => {
         const option = document.createElement('option');
         option.value = type;
-        option.textContent = slugToLabel(type.replace('polararea', 'polar_area'));
+        option.textContent = getChartTypeLabel(type);
         elements.chartType.appendChild(option);
     });
 }
@@ -420,7 +443,7 @@ function buildDatasets(chart, labels, series) {
     const palette = Array.isArray(chart.options?.colors) && chart.options.colors.length
         ? chart.options.colors
         : getPalette();
-    const type = chart.chart_type || 'bar';
+    const type = getChartJsType(chart.chart_type);
     const valueFields = Array.isArray(chart.value_fields) ? chart.value_fields : [];
 
     return valueFields.map((field, index) => {
@@ -494,8 +517,41 @@ function renderChartInstance(chart, canvas, messageEl) {
                 chartInstances.get(chart.id).destroy();
             }
 
+            const chartJsType = getChartJsType(chart.chart_type);
+            const horizontalBar = isHorizontalBar(chart.chart_type);
+            const isCircular = chartJsType === 'pie' || chartJsType === 'doughnut';
+            const isRadar = chartJsType === 'radar';
+
+            const axisTickColor = 'rgba(226, 232, 240, 0.7)';
+            const axisGridColor = 'rgba(148, 163, 184, 0.15)';
+
+            const scales = (() => {
+                if (isCircular) {
+                    return {};
+                }
+                if (isRadar) {
+                    return {
+                        r: {
+                            angleLines: { color: axisGridColor },
+                            grid: { color: axisGridColor },
+                            pointLabels: { color: axisTickColor },
+                            ticks: { color: axisTickColor }
+                        }
+                    };
+                }
+
+                const createAxis = () => ({
+                    ticks: { color: axisTickColor },
+                    grid: { color: axisGridColor }
+                });
+
+                return horizontalBar
+                    ? { x: createAxis(), y: createAxis() }
+                    : { x: createAxis(), y: createAxis() };
+            })();
+
             const instance = new Chart(context, {
-                type: chart.chart_type || 'bar',
+                type: chartJsType,
                 data: {
                     labels,
                     datasets
@@ -503,6 +559,7 @@ function renderChartInstance(chart, canvas, messageEl) {
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    indexAxis: horizontalBar ? 'y' : 'x',
                     plugins: {
                         legend: {
                             position: 'bottom',
@@ -517,26 +574,7 @@ function renderChartInstance(chart, canvas, messageEl) {
                             intersect: false
                         }
                     },
-                    scales: chart.chart_type === 'pie' || chart.chart_type === 'doughnut'
-                        ? {}
-                        : {
-                            x: {
-                                ticks: {
-                                    color: 'rgba(226, 232, 240, 0.7)'
-                                },
-                                grid: {
-                                    color: 'rgba(148, 163, 184, 0.15)'
-                                }
-                            },
-                            y: {
-                                ticks: {
-                                    color: 'rgba(226, 232, 240, 0.7)'
-                                },
-                                grid: {
-                                    color: 'rgba(148, 163, 184, 0.15)'
-                                }
-                            }
-                        }
+                    scales
                 }
             });
             chartInstances.set(chart.id, instance);
@@ -563,11 +601,13 @@ function createChartCard(chart) {
 
     const title = document.createElement('h3');
     title.className = 'text-lg font-semibold';
-    title.textContent = chart.nome || `${slugToLabel(chart.chart_type)} - ${slugToLabel(chart.categoria)}`;
+    const chartLabel = getChartTypeLabel(chart.chart_type);
+    const categoryLabel = slugToLabel(chart.categoria);
+    title.textContent = chart.nome || `${chartLabel} - ${categoryLabel}`;
 
     const meta = document.createElement('p');
     meta.className = 'text-xs text-white/50 uppercase tracking-widest';
-    meta.textContent = `${slugToLabel(chart.categoria)} • ${slugToLabel(chart.chart_type)}`;
+    meta.textContent = `${categoryLabel} • ${chartLabel}`;
 
     info.appendChild(title);
     info.appendChild(meta);
