@@ -13,7 +13,10 @@ const state = {
     selectedIndicators: [],
     selectedMetrics: [METRIC_OPTIONS[0].value],
     activeDropdown: null,
-    resizeObservers: new Map()
+    resizeObservers: new Map(),
+    currentViewId: null,
+    viewRenderToken: 0,
+    viewResizeHandler: null
 };
 
 const elements = {
@@ -35,11 +38,20 @@ const elements = {
     formFeedback: document.getElementById('chartFormFeedback'),
     chartsGrid: document.getElementById('chartsGrid'),
     emptyState: document.getElementById('chartsEmptyState'),
+    chartsSubtitle: document.getElementById('chartsSubtitle'),
     deleteModal: document.getElementById('chartDeleteModal'),
     deleteName: document.getElementById('deleteChartName'),
     confirmDeleteBtn: document.getElementById('confirmDeleteChartBtn'),
     cancelDeleteBtn: document.getElementById('cancelDeleteChartBtn'),
-    toastContainer: document.getElementById('toastContainer')
+    toastContainer: document.getElementById('toastContainer'),
+    viewModal: document.getElementById('viewChartModal'),
+    viewModalOverlay: document.getElementById('viewChartModalOverlay'),
+    closeViewModalBtn: document.getElementById('closeViewChartBtn'),
+    nextViewModalBtn: document.getElementById('nextViewChartBtn'),
+    viewChartTitle: document.getElementById('viewChartTitle'),
+    viewChartMeta: document.getElementById('viewChartMeta'),
+    viewChartCanvas: document.getElementById('viewChartCanvas'),
+    viewChartMessage: document.getElementById('viewChartMessage')
 };
 
 const indicatorMap = new Map(
@@ -81,6 +93,15 @@ function showToast(message, type = 'success') {
 
 function metricLabel(metric) {
     return seriesFriendlyNames[metric] || metric;
+}
+
+function chartTypeLabel(type) {
+    if (!type) return '';
+    return String(type)
+        .split('_')
+        .filter(Boolean)
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(' ');
 }
 
 function closeAllDropdowns() {
@@ -412,15 +433,17 @@ function getChartContainerSizing(type) {
     switch (normalized) {
         case 'pie':
         case 'doughnut':
-            return { paddingBottom: '100%', minHeight: '260px', maxHeight: '420px', aspectRatio: '1 / 1' };
+            return { minHeight: '440px', maxHeight: '560px' };
         case 'gauge':
-            return { paddingBottom: '75%', minHeight: '260px', maxHeight: '420px', aspectRatio: '5 / 3' };
+            return { minHeight: '420px', maxHeight: '540px' };
         case 'table':
-            return { paddingBottom: '55%', minHeight: '220px', maxHeight: '360px', aspectRatio: '4 / 3' };
+            return { minHeight: '380px', maxHeight: '520px' };
         case 'radar':
-            return { paddingBottom: '80%', minHeight: '260px', maxHeight: '440px', aspectRatio: '4 / 3' };
+            return { minHeight: '460px', maxHeight: '620px' };
+        case 'heatmap':
+            return { minHeight: '440px', maxHeight: '600px' };
         default:
-            return { paddingBottom: '62%', minHeight: '280px', maxHeight: '520px', aspectRatio: '16 / 9' };
+            return { minHeight: '460px', maxHeight: '640px' };
     }
 }
 
@@ -662,6 +685,181 @@ function buildFigure(chart) {
 
     return { data, layout };
 }
+
+function isViewModalOpen() {
+    return Boolean(elements.viewModal && !elements.viewModal.classList.contains('hidden'));
+}
+
+function updateViewModalNavigation() {
+    if (!elements.nextViewModalBtn) return;
+    const disabled = state.charts.length <= 1;
+    elements.nextViewModalBtn.disabled = disabled;
+    elements.nextViewModalBtn.classList.toggle('opacity-50', disabled);
+    elements.nextViewModalBtn.classList.toggle('cursor-not-allowed', disabled);
+}
+
+function updateViewModalContent(chart) {
+    if (!chart) return;
+    const metricsList = getChartMetrics(chart);
+    const metricSummary = metricsList.length ? metricsList.map(metricLabel).join(', ') : metricLabel(chart.metric || '');
+    if (elements.viewChartTitle) {
+        const chartLabel = chartTypeLabel(chart.chart_type || chart.chartType);
+        elements.viewChartTitle.textContent = chart.nome || chartLabel || 'Visualização';
+    }
+    if (elements.viewChartMeta) {
+        const indicators = Array.isArray(chart.indicators) && chart.indicators.length ? chart.indicators.join(', ') : 'n/d';
+        const chartLabel = chartTypeLabel(chart.chart_type || chart.chartType);
+        const parts = [];
+        if (chartLabel) {
+            parts.push(chartLabel);
+        }
+        parts.push(`Métricas: ${metricSummary || 'n/d'}`);
+        parts.push(`Indicadores: ${indicators}`);
+        elements.viewChartMeta.textContent = parts.join(' • ');
+    }
+}
+
+function ensureViewResizeHandler() {
+    if (state.viewResizeHandler || typeof window === 'undefined') return;
+    state.viewResizeHandler = () => {
+        if (!isViewModalOpen() || !elements.viewChartCanvas) return;
+        try {
+            Plotly.Plots.resize(elements.viewChartCanvas);
+        } catch (error) {
+            /* noop */
+        }
+    };
+    window.addEventListener('resize', state.viewResizeHandler, { passive: true });
+}
+
+function removeViewResizeHandler() {
+    if (!state.viewResizeHandler || typeof window === 'undefined') return;
+    window.removeEventListener('resize', state.viewResizeHandler);
+    state.viewResizeHandler = null;
+}
+
+function destroyViewChartInstance() {
+    if (elements.viewChartCanvas) {
+        try {
+            Plotly.purge(elements.viewChartCanvas);
+        } catch (error) {
+            /* noop */
+        }
+        elements.viewChartCanvas.innerHTML = '';
+        elements.viewChartCanvas.classList.add('hidden');
+    }
+}
+
+function renderViewModalChart(chart) {
+    if (!chart || !elements.viewChartCanvas) return;
+    const figure = buildFigure(chart);
+    state.viewRenderToken += 1;
+    const token = state.viewRenderToken;
+
+    destroyViewChartInstance();
+
+    if (!figure) {
+        if (elements.viewChartMessage) {
+            elements.viewChartMessage.textContent = 'Não há dados suficientes para exibir este gráfico.';
+            elements.viewChartMessage.classList.remove('hidden');
+        }
+        removeViewResizeHandler();
+        return;
+    }
+
+    if (elements.viewChartMessage) {
+        elements.viewChartMessage.classList.add('hidden');
+        elements.viewChartMessage.textContent = '';
+    }
+
+    elements.viewChartCanvas.classList.remove('hidden');
+    elements.viewChartCanvas.style.width = '100%';
+    elements.viewChartCanvas.style.height = '100%';
+
+    const layout = { ...figure.layout };
+    const config = {
+        responsive: true,
+        displaylogo: false,
+        modeBarButtonsToRemove: ['lasso2d', 'autoScale2d']
+    };
+
+    Plotly.newPlot(elements.viewChartCanvas, figure.data, layout, config)
+        .then(() => {
+            if (token !== state.viewRenderToken) {
+                return;
+            }
+            try {
+                Plotly.Plots.resize(elements.viewChartCanvas);
+            } catch (error) {
+                /* noop */
+            }
+            ensureViewResizeHandler();
+        })
+        .catch((error) => {
+            if (token !== state.viewRenderToken) {
+                return;
+            }
+            destroyViewChartInstance();
+            removeViewResizeHandler();
+            if (elements.viewChartMessage) {
+                elements.viewChartMessage.textContent = error.message || 'Falha ao carregar o gráfico.';
+                elements.viewChartMessage.classList.remove('hidden');
+            }
+        });
+}
+
+function openViewModal(chart) {
+    if (!chart || !elements.viewModal) return;
+    state.currentViewId = chart.id;
+    updateViewModalNavigation();
+    updateViewModalContent(chart);
+    renderViewModalChart(chart);
+    elements.viewModal.classList.remove('hidden');
+    elements.viewModal.classList.add('flex');
+}
+
+function closeViewModal() {
+    if (!elements.viewModal) return;
+    state.currentViewId = null;
+    state.viewRenderToken += 1;
+    destroyViewChartInstance();
+    removeViewResizeHandler();
+    if (elements.viewChartMessage) {
+        elements.viewChartMessage.classList.add('hidden');
+        elements.viewChartMessage.textContent = '';
+    }
+    elements.viewModal.classList.add('hidden');
+    elements.viewModal.classList.remove('flex');
+}
+
+function showNextViewChart() {
+    if (state.charts.length <= 1) return;
+    if (state.currentViewId === null) return;
+
+    const currentIndex = state.charts.findIndex((item) => item.id === state.currentViewId);
+    if (currentIndex === -1) {
+        const fallback = state.charts[0];
+        if (!fallback) {
+            closeViewModal();
+            return;
+        }
+        state.currentViewId = fallback.id;
+        updateViewModalContent(fallback);
+        renderViewModalChart(fallback);
+        return;
+    }
+
+    const nextIndex = (currentIndex + 1) % state.charts.length;
+    const nextChart = state.charts[nextIndex];
+    if (!nextChart) {
+        closeViewModal();
+        return;
+    }
+
+    state.currentViewId = nextChart.id;
+    updateViewModalContent(nextChart);
+    renderViewModalChart(nextChart);
+}
 function renderCharts() {
     if (!elements.chartsGrid) return;
     elements.chartsGrid.innerHTML = '';
@@ -675,14 +873,26 @@ function renderCharts() {
 
     if (!state.charts.length) {
         elements.emptyState?.classList.remove('hidden');
+        if (elements.chartsSubtitle) {
+            elements.chartsSubtitle.textContent = 'Crie seu primeiro grafico para transformar os indicadores em insights visuais.';
+        }
+        if (isViewModalOpen() || state.currentViewId !== null) {
+            closeViewModal();
+        } else {
+            state.currentViewId = null;
+        }
+        updateViewModalNavigation();
         return;
     }
 
     elements.emptyState?.classList.add('hidden');
+    if (elements.chartsSubtitle) {
+        elements.chartsSubtitle.textContent = 'Explore visualizacoes criadas para este workflow.';
+    }
 
     state.charts.forEach((chart) => {
         const card = document.createElement('article');
-        card.className = `glass-panel ${ctx.themeClasses?.modalSurface || ''} border border-white/10 rounded-3xl p-5 space-y-4 shadow-lg shadow-blue-500/10`;
+        card.className = `glass-panel ${ctx.themeClasses?.modalSurface || ''} border border-white/10 rounded-3xl p-5 space-y-5 shadow-lg shadow-blue-500/10`;
         card.dataset.chartId = chart.id;
 
         const header = document.createElement('div');
@@ -690,23 +900,59 @@ function renderCharts() {
 
         const metricsList = getChartMetrics(chart);
         const metricSummary = metricsList.length ? metricsList.map(metricLabel).join(', ') : metricLabel(chart.metric || '');
-        const indicatorSummary = chart.indicators.map((name) => `<span class=\"text-white/70\">${name}</span>`).join(', ');
+        const indicatorSummary = Array.isArray(chart.indicators) && chart.indicators.length
+            ? chart.indicators.join(', ')
+            : 'n/d';
+        const chartLabel = chartTypeLabel(chart.chart_type || chart.chartType);
 
         const info = document.createElement('div');
-        info.innerHTML = `
-            <h3 class="text-lg font-semibold">${chart.nome || chart.chart_type}</h3>
-            <p class="text-xs text-white/50 mt-1">Metricas: ${metricSummary || 'n/d'}</p>
-            <p class="text-xs text-white/50 mt-1">Indicadores: ${indicatorSummary}</p>
-        `;
+        info.className = 'space-y-1';
+
+        const title = document.createElement('h3');
+        title.className = 'text-lg font-semibold';
+        title.textContent = chart.nome || chartLabel || chart.chart_type || 'Grafico';
+        info.appendChild(title);
+
+        if (chartLabel) {
+            const typeLine = document.createElement('p');
+            typeLine.className = 'text-xs text-white/50 uppercase tracking-widest';
+            typeLine.textContent = `Tipo: ${chartLabel}`;
+            info.appendChild(typeLine);
+        }
+
+        const metricsLine = document.createElement('p');
+        metricsLine.className = 'text-xs text-white/60';
+        metricsLine.textContent = `Metricas: ${metricSummary || 'n/d'}`;
+        info.appendChild(metricsLine);
+
+        const indicatorsLine = document.createElement('p');
+        indicatorsLine.className = 'text-xs text-white/60';
+        indicatorsLine.textContent = `Indicadores: ${indicatorSummary}`;
+        info.appendChild(indicatorsLine);
 
         const actions = document.createElement('div');
         actions.className = 'flex items-center gap-2';
 
+        const viewBtn = document.createElement('button');
+        viewBtn.className = 'p-2 rounded-full border border-transparent text-white/60 hover:text-blue-300 hover:border-blue-300 transition-colors';
+        viewBtn.dataset.viewChart = chart.id;
+        viewBtn.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12s3.75-6.75 9.75-6.75S21.75 12 21.75 12s-3.75 6.75-9.75 6.75S2.25 12 2.25 12z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 15.75a3.75 3.75 0 1 0 0-7.5 3.75 3.75 0 0 0 0 7.5z" />
+            </svg>
+        `;
+        actions.appendChild(viewBtn);
+
         const deleteBtn = document.createElement('button');
-        deleteBtn.className = `${ctx.themeClasses?.buttons?.danger || 'bg-rose-600 hover:bg-rose-700 text-white'} px-3 py-1.5 text-xs uppercase tracking-wide rounded-full`;
-        deleteBtn.textContent = 'Excluir';
+        deleteBtn.className = 'p-2 rounded-full border border-transparent text-white/60 hover:text-rose-400 hover:border-rose-400 transition-colors';
         deleteBtn.dataset.deleteChart = chart.id;
-        deleteBtn.dataset.chartName = chart.nome || chart.chart_type;
+        deleteBtn.dataset.chartName = chart.nome || chartLabel || chart.chart_type || 'este grafico';
+        deleteBtn.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+        `;
         actions.appendChild(deleteBtn);
 
         header.appendChild(info);
@@ -717,20 +963,20 @@ function renderCharts() {
 
         const plotWrapper = document.createElement('div');
         plotWrapper.className = 'chart-plot-wrapper';
-        plotWrapper.style.paddingBottom = sizing.paddingBottom || '62%';
-        plotWrapper.style.minHeight = sizing.minHeight || '280px';
-        plotWrapper.style.maxHeight = sizing.maxHeight || '520px';
-        if (sizing.aspectRatio) {
-            plotWrapper.style.aspectRatio = sizing.aspectRatio;
-            plotWrapper.style.height = 'auto';
+        plotWrapper.style.minHeight = sizing?.minHeight || '460px';
+        if (sizing?.maxHeight) {
+            plotWrapper.style.maxHeight = sizing.maxHeight;
         } else {
-            plotWrapper.style.aspectRatio = '';
-            plotWrapper.style.height = '0';
+            plotWrapper.style.removeProperty('maxHeight');
         }
+        plotWrapper.style.height = '';
+        plotWrapper.style.aspectRatio = sizing?.aspectRatio || '';
 
         const plotCanvas = document.createElement('div');
         plotCanvas.id = plotId;
         plotCanvas.className = 'chart-plot-canvas';
+        plotCanvas.style.width = '100%';
+        plotCanvas.style.height = '100%';
         plotWrapper.appendChild(plotCanvas);
 
         card.appendChild(header);
@@ -767,6 +1013,21 @@ function renderCharts() {
             plotCanvas.textContent = 'Nao foi possivel renderizar este grafico.';
         }
     });
+
+    if (state.currentViewId !== null) {
+        const currentChart = state.charts.find((item) => item.id === state.currentViewId);
+        if (!currentChart) {
+            closeViewModal();
+            updateViewModalNavigation();
+        } else if (isViewModalOpen()) {
+            updateViewModalContent(currentChart);
+            renderViewModalChart(currentChart);
+        } else {
+            updateViewModalNavigation();
+        }
+    } else {
+        updateViewModalNavigation();
+    }
 }
 
 function refreshCharts() {
@@ -947,11 +1208,14 @@ function bindGlobalListeners() {
     document.addEventListener('keydown', (event) => {
         if (event.key === 'Escape') {
             closeAllDropdowns();
-            if (!elements.chartModal.classList.contains('hidden')) {
+            if (elements.chartModal && !elements.chartModal.classList.contains('hidden')) {
                 closeChartModal();
             }
-            if (!elements.deleteModal.classList.contains('hidden')) {
+            if (elements.deleteModal && !elements.deleteModal.classList.contains('hidden')) {
                 closeDeleteChartModal();
+            }
+            if (elements.viewModal && !elements.viewModal.classList.contains('hidden')) {
+                closeViewModal();
             }
         }
     });
@@ -984,6 +1248,16 @@ function bindEventListeners() {
     });
 
     elements.chartsGrid?.addEventListener('click', (event) => {
+        const viewBtn = event.target.closest('button[data-view-chart]');
+        if (viewBtn) {
+            const chartId = Number.parseInt(viewBtn.dataset.viewChart, 10);
+            const chart = state.charts.find((item) => item.id === chartId);
+            if (chart) {
+                openViewModal(chart);
+            }
+            return;
+        }
+
         const deleteBtn = event.target.closest('button[data-delete-chart]');
         if (!deleteBtn) return;
         const chartId = Number.parseInt(deleteBtn.dataset.deleteChart, 10);
@@ -997,6 +1271,15 @@ function bindEventListeners() {
     elements.deleteModal?.addEventListener('click', (event) => {
         if (event.target.id === 'chartDeleteModal') {
             closeDeleteChartModal();
+        }
+    });
+
+    elements.closeViewModalBtn?.addEventListener('click', closeViewModal);
+    elements.nextViewModalBtn?.addEventListener('click', showNextViewChart);
+
+    elements.viewModal?.addEventListener('click', (event) => {
+        if (event.target.id === 'viewChartModal' || event.target.id === 'viewChartModalOverlay') {
+            closeViewModal();
         }
     });
 }
