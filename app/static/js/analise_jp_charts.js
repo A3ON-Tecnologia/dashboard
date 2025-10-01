@@ -4,10 +4,13 @@ const state = {
     charts: Array.isArray(ctx.charts) ? [...ctx.charts] : [],
     datasets: new Map(),
     pendingDelete: null,
-    selectAllActive: false
+    selectAllActive: false,
+    currentViewId: null,
+    viewRenderToken: 0
 };
 
 const chartInstances = new Map();
+const viewChartInstances = new Map();
 
 const CHART_TYPE_LABELS = {
     bar: 'Barras verticais',
@@ -49,7 +52,15 @@ const elements = {
     confirmDeleteBtn: document.getElementById('confirmDeleteBtn'),
     deleteSpinner: document.getElementById('deleteSpinner'),
     cancelDeleteBtn: document.getElementById('cancelDeleteBtn'),
-    closeDeleteModalBtn: document.getElementById('closeDeleteModalBtn')
+    closeDeleteModalBtn: document.getElementById('closeDeleteModalBtn'),
+    viewModal: document.getElementById('viewChartModal'),
+    viewModalOverlay: document.getElementById('viewChartModalOverlay'),
+    closeViewModalBtn: document.getElementById('closeViewChartBtn'),
+    nextViewModalBtn: document.getElementById('nextViewChartBtn'),
+    viewChartTitle: document.getElementById('viewChartTitle'),
+    viewChartMeta: document.getElementById('viewChartMeta'),
+    viewChartCanvas: document.getElementById('viewChartCanvas'),
+    viewChartMessage: document.getElementById('viewChartMessage')
 };
 
 const DEFAULT_PALETTE = ['#38BDF8', '#22D3EE', '#A855F7', '#F97316', '#FACC15', '#34D399'];
@@ -399,6 +410,15 @@ function parseNumeric(value) {
     if (typeof value !== 'string') return null;
     const trimmed = value.trim();
     if (!trimmed) return null;
+    const timeMatch = trimmed.match(/^([+-]?)(\d+):([0-5]?\d)(?::([0-5]?\d))?$/);
+    if (timeMatch) {
+        const sign = timeMatch[1] === '-' ? -1 : 1;
+        const hours = parseInt(timeMatch[2], 10);
+        const minutes = parseInt(timeMatch[3], 10);
+        const seconds = timeMatch[4] ? parseInt(timeMatch[4], 10) : 0;
+        const decimalHours = hours + minutes / 60 + seconds / 3600;
+        return sign * decimalHours;
+    }
     let normalized = trimmed.replace(/\s+/g, '');
     if (normalized.includes(',') && normalized.includes('.')) {
         normalized = normalized.replace(/\./g, '').replace(',', '.');
@@ -485,99 +505,127 @@ function buildDatasets(chart, labels, series) {
     });
 }
 
-function renderChartInstance(chart, canvas, messageEl) {
-    if (!canvas) return;
+function drawChart(chart, canvas, messageEl, labels, series, instanceStore) {
+    const hasValues = series.some((values) => values.some((value) => typeof value === 'number'));
+    if (!labels.length || !hasValues) {
+        if (messageEl) {
+            messageEl.classList.remove('hidden');
+            messageEl.textContent = 'Não há dados numéricos suficientes para renderizar este gráfico.';
+        }
+        canvas.classList.add('hidden');
+        if (instanceStore && typeof instanceStore.has === 'function' && instanceStore.has(chart.id)) {
+            const existing = instanceStore.get(chart.id);
+            if (existing && typeof existing.destroy === 'function') {
+                existing.destroy();
+            }
+            instanceStore.delete(chart.id);
+        }
+        return null;
+    }
+
+    if (messageEl) {
+        messageEl.classList.add('hidden');
+        messageEl.textContent = '';
+    }
+    canvas.classList.remove('hidden');
+
+    const datasets = buildDatasets(chart, labels, series);
+    const context = canvas.getContext('2d');
+    if (!context) {
+        return null;
+    }
+
+    if (instanceStore && typeof instanceStore.has === 'function' && instanceStore.has(chart.id)) {
+        const existing = instanceStore.get(chart.id);
+        if (existing && typeof existing.destroy === 'function') {
+            existing.destroy();
+        }
+        instanceStore.delete(chart.id);
+    }
+
+    const chartJsType = getChartJsType(chart.chart_type);
+    const horizontalBar = isHorizontalBar(chart.chart_type);
+    const isCircular = chartJsType === 'pie' || chartJsType === 'doughnut';
+    const isRadar = chartJsType === 'radar';
+
+    const axisTickColor = 'rgba(226, 232, 240, 0.7)';
+    const axisGridColor = 'rgba(148, 163, 184, 0.15)';
+
+    const scales = (() => {
+        if (isCircular) {
+            return {};
+        }
+        if (isRadar) {
+            return {
+                r: {
+                    angleLines: { color: axisGridColor },
+                    grid: { color: axisGridColor },
+                    pointLabels: { color: axisTickColor },
+                    ticks: { color: axisTickColor }
+                }
+            };
+        }
+
+        const createAxis = () => ({
+            ticks: { color: axisTickColor },
+            grid: { color: axisGridColor }
+        });
+
+        return horizontalBar
+            ? { x: createAxis(), y: createAxis() }
+            : { x: createAxis(), y: createAxis() };
+    })();
+
+    const instance = new Chart(context, {
+        type: chartJsType,
+        data: {
+            labels,
+            datasets
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            indexAxis: horizontalBar ? 'y' : 'x',
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        color: 'rgba(226, 232, 240, 0.85)',
+                        padding: 14,
+                        usePointStyle: true
+                    }
+                },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false
+                }
+            },
+            scales
+        }
+    });
+
+    if (instanceStore && typeof instanceStore.set === 'function') {
+        instanceStore.set(chart.id, instance);
+    }
+
+    return instance;
+}
+
+function renderChartInstance(chart, canvas, messageEl, options = {}) {
+    if (!canvas) return Promise.resolve(null);
+    const { instanceStore = chartInstances } = options;
     const category = chart.categoria;
     if (messageEl) {
         messageEl.classList.add('hidden');
         messageEl.textContent = '';
     }
     canvas.classList.remove('hidden');
-    fetchDataset(category)
+    return fetchDataset(category)
         .then((dataset) => {
             const records = Array.isArray(dataset?.records) ? dataset.records : [];
             const valueFields = Array.isArray(chart.value_fields) ? chart.value_fields : [];
             const { labels, series } = prepareChartData(records, chart.dimension_field, valueFields);
-            const hasValues = series.some((values) => values.some((value) => typeof value === 'number'));
-
-            if (!labels.length || !hasValues) {
-                if (messageEl) {
-                    messageEl.classList.remove('hidden');
-                    messageEl.textContent = 'Não há dados numéricos suficientes para renderizar este gráfico.';
-                }
-                canvas.classList.add('hidden');
-                return;
-            }
-
-            const datasets = buildDatasets({ ...chart, value_fields: valueFields }, labels, series);
-            const context = canvas.getContext('2d');
-            if (!context) return;
-
-            if (chartInstances.has(chart.id)) {
-                chartInstances.get(chart.id).destroy();
-            }
-
-            const chartJsType = getChartJsType(chart.chart_type);
-            const horizontalBar = isHorizontalBar(chart.chart_type);
-            const isCircular = chartJsType === 'pie' || chartJsType === 'doughnut';
-            const isRadar = chartJsType === 'radar';
-
-            const axisTickColor = 'rgba(226, 232, 240, 0.7)';
-            const axisGridColor = 'rgba(148, 163, 184, 0.15)';
-
-            const scales = (() => {
-                if (isCircular) {
-                    return {};
-                }
-                if (isRadar) {
-                    return {
-                        r: {
-                            angleLines: { color: axisGridColor },
-                            grid: { color: axisGridColor },
-                            pointLabels: { color: axisTickColor },
-                            ticks: { color: axisTickColor }
-                        }
-                    };
-                }
-
-                const createAxis = () => ({
-                    ticks: { color: axisTickColor },
-                    grid: { color: axisGridColor }
-                });
-
-                return horizontalBar
-                    ? { x: createAxis(), y: createAxis() }
-                    : { x: createAxis(), y: createAxis() };
-            })();
-
-            const instance = new Chart(context, {
-                type: chartJsType,
-                data: {
-                    labels,
-                    datasets
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    indexAxis: horizontalBar ? 'y' : 'x',
-                    plugins: {
-                        legend: {
-                            position: 'bottom',
-                            labels: {
-                                color: 'rgba(226, 232, 240, 0.85)',
-                                padding: 14,
-                                usePointStyle: true
-                            }
-                        },
-                        tooltip: {
-                            mode: 'index',
-                            intersect: false
-                        }
-                    },
-                    scales
-                }
-            });
-            chartInstances.set(chart.id, instance);
+            return drawChart({ ...chart, value_fields: valueFields }, canvas, messageEl, labels, series, instanceStore);
         })
         .catch((error) => {
             if (messageEl) {
@@ -585,6 +633,14 @@ function renderChartInstance(chart, canvas, messageEl) {
                 messageEl.textContent = error.message || 'Falha ao carregar dados do gráfico.';
             }
             canvas.classList.add('hidden');
+            if (instanceStore && typeof instanceStore.has === 'function' && instanceStore.has(chart.id)) {
+                const existing = instanceStore.get(chart.id);
+                if (existing && typeof existing.destroy === 'function') {
+                    existing.destroy();
+                }
+                instanceStore.delete(chart.id);
+            }
+            return null;
         });
 }
 
@@ -612,6 +668,19 @@ function createChartCard(chart) {
     info.appendChild(title);
     info.appendChild(meta);
 
+    const actions = document.createElement('div');
+    actions.className = 'flex items-center gap-2';
+
+    const viewBtn = document.createElement('button');
+    viewBtn.className = 'p-2 rounded-full border border-transparent text-white/60 hover:text-emerald-300 hover:border-emerald-300 transition-colors';
+    viewBtn.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12s3.75-6.75 9.75-6.75S21.75 12 21.75 12s-3.75 6.75-9.75 6.75S2.25 12 2.25 12z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 15.75a3.75 3.75 0 1 0 0-7.5 3.75 3.75 0 0 0 0 7.5z" />
+        </svg>
+    `;
+    viewBtn.addEventListener('click', () => openViewModal(chart));
+
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'p-2 rounded-full border border-transparent text-white/60 hover:text-rose-400 hover:border-rose-400 transition-colors';
     deleteBtn.innerHTML = `
@@ -622,10 +691,12 @@ function createChartCard(chart) {
     deleteBtn.addEventListener('click', () => openDeleteModal(chart));
 
     header.appendChild(info);
-    header.appendChild(deleteBtn);
+    actions.appendChild(viewBtn);
+    actions.appendChild(deleteBtn);
+    header.appendChild(actions);
 
     const canvasWrapper = document.createElement('div');
-    canvasWrapper.className = 'relative rounded-3xl border border-white/10 bg-white/5 h-[320px] overflow-hidden';
+    canvasWrapper.className = 'relative rounded-3xl border border-white/10 bg-white/5 h-[420px] overflow-hidden';
 
     const canvas = document.createElement('canvas');
     canvasWrapper.appendChild(canvas);
@@ -657,6 +728,121 @@ function destroyAllCharts() {
     chartInstances.clear();
 }
 
+function destroyViewChartInstance() {
+    viewChartInstances.forEach((instance) => {
+        if (instance && typeof instance.destroy === 'function') {
+            instance.destroy();
+        }
+    });
+    viewChartInstances.clear();
+}
+
+function updateViewModalNavigation() {
+    if (!elements.nextViewModalBtn) return;
+    const disabled = state.charts.length <= 1;
+    elements.nextViewModalBtn.disabled = disabled;
+    elements.nextViewModalBtn.classList.toggle('opacity-50', disabled);
+    elements.nextViewModalBtn.classList.toggle('cursor-not-allowed', disabled);
+}
+
+function updateViewModalContent(chart) {
+    if (!chart) return;
+    const chartLabel = getChartTypeLabel(chart.chart_type);
+    const categoryLabel = slugToLabel(chart.categoria);
+    if (elements.viewChartTitle) {
+        elements.viewChartTitle.textContent = chart.nome || `${chartLabel} - ${categoryLabel}`;
+    }
+    if (elements.viewChartMeta) {
+        elements.viewChartMeta.textContent = `${categoryLabel} • ${chartLabel}`;
+    }
+}
+
+function renderViewModalChart(chart) {
+    if (!chart || !elements.viewChartCanvas) return;
+    updateViewModalNavigation();
+    state.viewRenderToken += 1;
+    const token = state.viewRenderToken;
+    destroyViewChartInstance();
+    elements.viewChartCanvas.classList.add('hidden');
+    if (elements.viewChartMessage) {
+        elements.viewChartMessage.classList.add('hidden');
+        elements.viewChartMessage.textContent = '';
+    }
+    fetchDataset(chart.categoria)
+        .then((dataset) => {
+            if (token !== state.viewRenderToken) {
+                return;
+            }
+            const records = Array.isArray(dataset?.records) ? dataset.records : [];
+            const valueFields = Array.isArray(chart.value_fields) ? chart.value_fields : [];
+            const { labels, series } = prepareChartData(records, chart.dimension_field, valueFields);
+            const result = drawChart({ ...chart, value_fields: valueFields }, elements.viewChartCanvas, elements.viewChartMessage, labels, series, viewChartInstances);
+            if (!result && token === state.viewRenderToken && elements.viewChartMessage) {
+                elements.viewChartMessage.classList.remove('hidden');
+            }
+        })
+        .catch((error) => {
+            if (token !== state.viewRenderToken) {
+                return;
+            }
+            if (elements.viewChartMessage) {
+                elements.viewChartMessage.classList.remove('hidden');
+                elements.viewChartMessage.textContent = error.message || 'Falha ao carregar dados do gráfico.';
+            }
+            elements.viewChartCanvas.classList.add('hidden');
+        });
+}
+
+function openViewModal(chart) {
+    if (!chart || !elements.viewModal) return;
+    state.currentViewId = chart.id;
+    updateViewModalNavigation();
+    updateViewModalContent(chart);
+    renderViewModalChart(chart);
+    elements.viewModal.classList.remove('hidden');
+}
+
+function closeViewModal() {
+    if (!elements.viewModal) return;
+    state.currentViewId = null;
+    state.viewRenderToken += 1;
+    destroyViewChartInstance();
+    if (elements.viewChartMessage) {
+        elements.viewChartMessage.classList.add('hidden');
+        elements.viewChartMessage.textContent = '';
+    }
+    if (elements.viewChartCanvas) {
+        elements.viewChartCanvas.classList.add('hidden');
+    }
+    elements.viewModal.classList.add('hidden');
+}
+
+function showNextViewChart() {
+    if (state.charts.length <= 1) return;
+    if (state.currentViewId === null) return;
+    const currentIndex = state.charts.findIndex((item) => item.id === state.currentViewId);
+    if (currentIndex === -1) {
+        const fallback = state.charts[0];
+        if (fallback) {
+            state.currentViewId = fallback.id;
+            updateViewModalContent(fallback);
+            renderViewModalChart(fallback);
+        } else {
+            closeViewModal();
+        }
+        return;
+    }
+    const nextIndex = (currentIndex + 1) % state.charts.length;
+    const nextChart = state.charts[nextIndex];
+    if (!nextChart) {
+        closeViewModal();
+        return;
+    }
+    state.currentViewId = nextChart.id;
+    updateViewModalContent(nextChart);
+    renderViewModalChart(nextChart);
+}
+
 function renderCharts() {
     if (!elements.chartsGrid) return;
     destroyAllCharts();
@@ -682,6 +868,21 @@ function renderCharts() {
         const card = createChartCard(chart);
         elements.chartsGrid.appendChild(card);
     });
+
+    if (state.currentViewId !== null) {
+        const currentChart = state.charts.find((item) => item.id === state.currentViewId);
+        if (!currentChart) {
+            closeViewModal();
+            updateViewModalNavigation();
+        } else if (elements.viewModal && !elements.viewModal.classList.contains('hidden')) {
+            updateViewModalContent(currentChart);
+            renderViewModalChart(currentChart);
+        } else {
+            updateViewModalNavigation();
+        }
+    } else {
+        updateViewModalNavigation();
+    }
 }
 
 async function refreshCharts() {
@@ -799,6 +1000,9 @@ function handleGlobalClick(event) {
     if (event.target === elements.deleteModalOverlay) {
         closeDeleteModal();
     }
+    if (event.target === elements.viewModalOverlay) {
+        closeViewModal();
+    }
 }
 
 function initEvents() {
@@ -845,6 +1049,15 @@ function initEvents() {
     if (elements.confirmDeleteBtn) {
         elements.confirmDeleteBtn.addEventListener('click', confirmDelete);
     }
+    if (elements.closeViewModalBtn) {
+        elements.closeViewModalBtn.addEventListener('click', closeViewModal);
+    }
+    if (elements.viewModalOverlay) {
+        elements.viewModalOverlay.addEventListener('click', closeViewModal);
+    }
+    if (elements.nextViewModalBtn) {
+        elements.nextViewModalBtn.addEventListener('click', showNextViewChart);
+    }
     document.addEventListener('keydown', (event) => {
         if (event.key === 'Escape') {
             if (!elements.chartModal?.classList.contains('hidden')) {
@@ -852,6 +1065,9 @@ function initEvents() {
             }
             if (!elements.deleteModal?.classList.contains('hidden')) {
                 closeDeleteModal();
+            }
+            if (!elements.viewModal?.classList.contains('hidden')) {
+                closeViewModal();
             }
         }
     });
