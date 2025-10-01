@@ -13,6 +13,7 @@ from app import db
 from app.models.analise_upload import AnaliseUpload
 from app.models.workflow import Workflow
 from app.services.theme_service import get_theme_context
+from sqlalchemy import func
 from sqlalchemy.exc import SQLAlchemyError
 
 
@@ -228,6 +229,33 @@ def listar_uploads(workflow_id: int, categoria: str):
             uploads_data.append(template_upload)
 
     return jsonify({'uploads': uploads_data})
+
+
+@analise_jp_bp.route('/analise_jp/<int:workflow_id>/upload-status', methods=['GET'])
+@login_required
+def status_uploads(workflow_id: int):
+    workflow = _get_workflow_or_404(workflow_id)
+
+    try:
+        counts = (
+            db.session.query(
+                AnaliseUpload.categoria,
+                func.count(AnaliseUpload.id)
+            )
+            .filter(AnaliseUpload.workflow_id == workflow.id)
+            .group_by(AnaliseUpload.categoria)
+            .all()
+        )
+    except SQLAlchemyError:
+        current_app.logger.exception('Falha ao consultar status de uploads para o workflow %s', workflow.id)
+        return jsonify({'error': 'Falha ao carregar status dos uploads.'}), 500
+
+    status = {category: False for category in ANALISE_JP_CATEGORIES}
+    for categoria, count in counts:
+        if categoria in status and count:
+            status[categoria] = True
+
+    return jsonify({'status': status})
 
 
 @analise_jp_bp.route('/analise_jp/<int:workflow_id>/upload/<string:categoria>', methods=['POST'])
