@@ -54,12 +54,35 @@ def _decode_csv_bytes(data: bytes) -> io.StringIO:
 
 
 def _load_dataframe(file_bytes: bytes, extension: str) -> pd.DataFrame:
+    """
+    Load the uploaded file into a dataframe preserving the original textual values.
+
+    When pandas infers numeric types automatically, numbers such as 0.1034 can end up
+    represented as 0.10339999999999999 due to floating point precision. For these
+    uploads the goal is to keep the exact content provided in the CSV/XLSX templates
+    so the data shown in the UI matches the spreadsheet. Reading everything as
+    strings avoids unwanted conversions while still letting us normalise empty
+    values later in the pipeline.
+    """
+
     if extension == '.csv':
         buffer = _decode_csv_bytes(file_bytes)
-        dataframe = pd.read_csv(buffer, sep=None, engine='python')
+        dataframe = pd.read_csv(
+            buffer,
+            sep=None,
+            engine='python',
+            dtype=str,
+            keep_default_na=False,
+        )
     else:
         buffer = io.BytesIO(file_bytes)
-        dataframe = pd.read_excel(buffer, engine='openpyxl')
+        dataframe = pd.read_excel(
+            buffer,
+            engine='openpyxl',
+            dtype=str,
+            na_filter=False,
+        )
+
     dataframe = dataframe.dropna(how='all')
     return dataframe
 
@@ -84,7 +107,14 @@ def _dataframe_to_records(dataframe: pd.DataFrame) -> List[dict]:
         record = {}
         for column in dataframe.columns:
             value = row[column]
-            record[column] = value if value == '' else str(value)
+
+            if value is None:
+                cleaned_value = ''
+            else:
+                value_str = str(value)
+                cleaned_value = value_str.strip()
+
+            record[column] = cleaned_value
         records.append(record)
 
     if not records:
