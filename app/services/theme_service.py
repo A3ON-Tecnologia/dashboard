@@ -12,3 +12,5 @@ def get_theme_context():
 def update_user_theme(theme_name):
     session['theme'] = theme_name
     return get_theme(theme_name)
+
+
