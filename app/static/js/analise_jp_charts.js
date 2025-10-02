@@ -3,10 +3,17 @@ const ctx = window.__ANALISE_JP__ || {};
 const state = {
     charts: Array.isArray(ctx.charts) ? [...ctx.charts] : [],
     datasets: new Map(),
+    datasetPromises: new Map(),
     pendingDelete: null,
     selectAllActive: false,
     currentViewId: null,
-    viewRenderToken: 0
+    viewRenderToken: 0,
+    chartCards: new Map(),
+    lazyObserver: null,
+    pendingRenders: new Set(),
+    prefetchedCategories: new Set(),
+    previewResizeHandler: null,
+    renderVersion: 0
 };
 
 const chartInstances = new Map();
@@ -64,6 +71,33 @@ const elements = {
 };
 
 const DEFAULT_PALETTE = ['#38BDF8', '#22D3EE', '#A855F7', '#F97316', '#FACC15', '#34D399'];
+
+function createThrottled(fn, delay = 120) {
+    let timeoutId = null;
+    let lastArgs = null;
+    return function throttled(...args) {
+        lastArgs = args;
+        if (timeoutId) {
+            return;
+        }
+        timeoutId = setTimeout(() => {
+            timeoutId = null;
+            fn.apply(this, lastArgs);
+        }, delay);
+    };
+}
+
+function scheduleIdle(work, timeout = 150) {
+    if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+        window.requestIdleCallback(work, { timeout });
+    } else {
+        setTimeout(work, Math.min(timeout, 120));
+    }
+}
+
+function bumpRenderVersion() {
+    state.renderVersion += 1;
+}
 
 function slugToLabel(slug) {
     if (!slug) return '';
@@ -275,18 +309,37 @@ function buildDatasetUrl(category) {
 
 async function fetchDataset(category, { force = false } = {}) {
     if (!category) return null;
-    if (!force && state.datasets.has(category)) {
-        return state.datasets.get(category);
+    if (force) {
+        state.datasets.delete(category);
+        state.datasetPromises.delete(category);
+    } else {
+        if (state.datasets.has(category)) {
+            return state.datasets.get(category);
+        }
+        if (state.datasetPromises.has(category)) {
+            return state.datasetPromises.get(category);
+        }
     }
+
     const url = buildDatasetUrl(category);
     if (!url) return null;
-    const response = await fetch(url);
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-        throw new Error(data?.error || 'Falha ao carregar dados da categoria.');
+
+    const request = (async () => {
+        const response = await fetch(url);
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(data?.error || 'Falha ao carregar dados da categoria.');
+        }
+        state.datasets.set(category, data);
+        return data;
+    })();
+
+    state.datasetPromises.set(category, request);
+    try {
+        return await request;
+    } finally {
+        state.datasetPromises.delete(category);
     }
-    state.datasets.set(category, data);
-    return data;
 }
 
 function createValueCheckbox(field, index, defaults = []) {
@@ -505,7 +558,9 @@ function buildDatasets(chart, labels, series) {
     });
 }
 
-function drawChart(chart, canvas, messageEl, labels, series, instanceStore) {
+
+function drawChart(chart, canvas, messageEl, labels, series, instanceStore, options = {}) {
+    const { disableAnimation = false } = options;
     const hasValues = series.some((values) => values.some((value) => typeof value === 'number'));
     if (!labels.length || !hasValues) {
         if (messageEl) {
@@ -533,14 +588,6 @@ function drawChart(chart, canvas, messageEl, labels, series, instanceStore) {
     const context = canvas.getContext('2d');
     if (!context) {
         return null;
-    }
-
-    if (instanceStore && typeof instanceStore.has === 'function' && instanceStore.has(chart.id)) {
-        const existing = instanceStore.get(chart.id);
-        if (existing && typeof existing.destroy === 'function') {
-            existing.destroy();
-        }
-        instanceStore.delete(chart.id);
     }
 
     const chartJsType = getChartJsType(chart.chart_type);
@@ -576,6 +623,41 @@ function drawChart(chart, canvas, messageEl, labels, series, instanceStore) {
             : { x: createAxis(), y: createAxis() };
     })();
 
+    const plugins = {
+        legend: {
+            position: 'bottom',
+            labels: {
+                color: 'rgba(226, 232, 240, 0.85)',
+                padding: 14,
+                usePointStyle: true
+            }
+        },
+        tooltip: {
+            mode: 'index',
+            intersect: false
+        }
+    };
+
+    if (instanceStore && typeof instanceStore.has === 'function' && instanceStore.has(chart.id)) {
+        const existing = instanceStore.get(chart.id);
+        if (existing) {
+            if (existing.config?.type === chartJsType) {
+                existing.data.labels = labels;
+                existing.data.datasets = datasets;
+                existing.options.indexAxis = horizontalBar ? 'y' : 'x';
+                existing.options.scales = scales;
+                existing.options.plugins = { ...existing.options.plugins, ...plugins };
+                existing.options.animation = disableAnimation ? false : { duration: 420, easing: 'easeOutQuart' };
+                existing.update(disableAnimation ? 'none' : undefined);
+                return existing;
+            }
+            if (typeof existing.destroy === 'function') {
+                existing.destroy();
+            }
+        }
+        instanceStore.delete(chart.id);
+    }
+
     const instance = new Chart(context, {
         type: chartJsType,
         data: {
@@ -586,20 +668,8 @@ function drawChart(chart, canvas, messageEl, labels, series, instanceStore) {
             responsive: true,
             maintainAspectRatio: false,
             indexAxis: horizontalBar ? 'y' : 'x',
-            plugins: {
-                legend: {
-                    position: 'bottom',
-                    labels: {
-                        color: 'rgba(226, 232, 240, 0.85)',
-                        padding: 14,
-                        usePointStyle: true
-                    }
-                },
-                tooltip: {
-                    mode: 'index',
-                    intersect: false
-                }
-            },
+            animation: disableAnimation ? false : { duration: 420, easing: 'easeOutQuart' },
+            plugins,
             scales
         }
     });
@@ -613,19 +683,45 @@ function drawChart(chart, canvas, messageEl, labels, series, instanceStore) {
 
 function renderChartInstance(chart, canvas, messageEl, options = {}) {
     if (!canvas) return Promise.resolve(null);
-    const { instanceStore = chartInstances } = options;
+    const {
+        instanceStore = chartInstances,
+        disableAnimation = false,
+        keepMessage = false
+    } = options;
     const category = chart.categoria;
-    if (messageEl) {
+
+    if (!keepMessage && messageEl) {
         messageEl.classList.add('hidden');
         messageEl.textContent = '';
     }
-    canvas.classList.remove('hidden');
+    if (keepMessage) {
+        canvas.classList.add('hidden');
+    } else {
+        canvas.classList.remove('hidden');
+    }
+
     return fetchDataset(category)
         .then((dataset) => {
             const records = Array.isArray(dataset?.records) ? dataset.records : [];
             const valueFields = Array.isArray(chart.value_fields) ? chart.value_fields : [];
             const { labels, series } = prepareChartData(records, chart.dimension_field, valueFields);
-            return drawChart({ ...chart, value_fields: valueFields }, canvas, messageEl, labels, series, instanceStore);
+            const instance = drawChart(
+                { ...chart, value_fields: valueFields },
+                canvas,
+                messageEl,
+                labels,
+                series,
+                instanceStore,
+                { disableAnimation }
+            );
+            if (instance) {
+                canvas.classList.remove('hidden');
+                if (messageEl) {
+                    messageEl.classList.add('hidden');
+                    messageEl.textContent = '';
+                }
+            }
+            return instance;
         })
         .catch((error) => {
             if (messageEl) {
@@ -644,10 +740,101 @@ function renderChartInstance(chart, canvas, messageEl, options = {}) {
         });
 }
 
-function createChartCard(chart) {
+
+function computeChartSignature(chart) {
+    return JSON.stringify({
+        id: chart.id,
+        nome: chart.nome,
+        chartType: chart.chart_type,
+        categoria: chart.categoria,
+        dimension: chart.dimension_field,
+        valueFields: Array.isArray(chart.value_fields) ? chart.value_fields : [],
+        colors: Array.isArray(chart.options?.colors) ? chart.options.colors : [],
+        updatedAt: chart.updated_at || chart.updatedAt || null
+    });
+}
+
+function showCardPlaceholder(entry, message) {
+    if (!entry?.messageEl) return;
+    if (typeof message === 'string') {
+        entry.messageEl.textContent = message;
+    }
+    entry.messageEl.classList.remove('hidden');
+    if (entry.canvas) {
+        entry.canvas.classList.add('hidden');
+    }
+}
+
+function hideCardPlaceholder(entry) {
+    if (!entry?.messageEl) return;
+    entry.messageEl.classList.add('hidden');
+    entry.messageEl.textContent = '';
+    if (entry.canvas) {
+        entry.canvas.classList.remove('hidden');
+    }
+}
+
+function scheduleCanvasResize(entry) {
+    if (!entry) return;
+    const instance = chartInstances.get(entry.id);
+    if (!instance || typeof instance.resize !== 'function') return;
+    if (entry.resizeFrame) {
+        return;
+    }
+    const resize = () => {
+        entry.resizeFrame = null;
+        try {
+            instance.resize();
+        } catch (error) {
+            /* noop */
+        }
+    };
+    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+        entry.resizeFrame = window.requestAnimationFrame(resize);
+    } else {
+        entry.resizeFrame = setTimeout(resize, 32);
+    }
+}
+
+function ensurePreviewResizeHandler() {
+    if (state.previewResizeHandler || typeof window === 'undefined') return;
+    state.previewResizeHandler = createThrottled(() => {
+        state.chartCards.forEach((entry) => {
+            if (entry.rendered) {
+                scheduleCanvasResize(entry);
+            }
+        });
+    }, 180);
+    window.addEventListener('resize', state.previewResizeHandler, { passive: true });
+}
+
+function ensureLazyObserver() {
+    if (state.lazyObserver) {
+        return state.lazyObserver;
+    }
+    if (typeof window === 'undefined' || typeof IntersectionObserver === 'undefined') {
+        return null;
+    }
+    state.lazyObserver = new IntersectionObserver((entries) => {
+        entries.forEach((observerEntry) => {
+            const chartId = Number.parseInt(observerEntry.target.dataset.chartId, 10);
+            if (!Number.isFinite(chartId)) return;
+            const cardEntry = state.chartCards.get(chartId);
+            if (!cardEntry) return;
+            cardEntry.isVisible = observerEntry.isIntersecting || observerEntry.intersectionRatio > 0;
+            if (cardEntry.isVisible) {
+                scheduleChartRender(chartId);
+            }
+        });
+    }, { rootMargin: '200px 0px', threshold: 0.1 });
+    return state.lazyObserver;
+}
+
+function createChartCardEntry(chart) {
     const card = document.createElement('div');
     const modalClass = ctx.themeClasses?.modal || '';
     card.className = `glass-panel ${modalClass} border border-white/5 rounded-3xl p-5 space-y-4`;
+    card.dataset.chartId = chart.id;
 
     const header = document.createElement('div');
     header.className = 'flex items-start justify-between gap-3';
@@ -657,15 +844,10 @@ function createChartCard(chart) {
 
     const title = document.createElement('h3');
     title.className = 'text-lg font-semibold';
-    const chartLabel = getChartTypeLabel(chart.chart_type);
-    const categoryLabel = slugToLabel(chart.categoria);
-    title.textContent = chart.nome || `${chartLabel} - ${categoryLabel}`;
+    info.appendChild(title);
 
     const meta = document.createElement('p');
     meta.className = 'text-xs text-white/50 uppercase tracking-widest';
-    meta.textContent = `${categoryLabel} • ${chartLabel}`;
-
-    info.appendChild(title);
     info.appendChild(meta);
 
     const actions = document.createElement('div');
@@ -679,7 +861,12 @@ function createChartCard(chart) {
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 15.75a3.75 3.75 0 1 0 0-7.5 3.75 3.75 0 0 0 0 7.5z" />
         </svg>
     `;
-    viewBtn.addEventListener('click', () => openViewModal(chart));
+    viewBtn.addEventListener('click', () => {
+        const latest = state.charts.find((item) => item.id === chart.id);
+        if (latest) {
+            openViewModal(latest);
+        }
+    });
 
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'p-2 rounded-full border border-transparent text-white/60 hover:text-rose-400 hover:border-rose-400 transition-colors';
@@ -688,44 +875,222 @@ function createChartCard(chart) {
             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
         </svg>
     `;
-    deleteBtn.addEventListener('click', () => openDeleteModal(chart));
+    deleteBtn.addEventListener('click', () => {
+        const latest = state.charts.find((item) => item.id === chart.id) || chart;
+        openDeleteModal(latest);
+    });
 
-    header.appendChild(info);
     actions.appendChild(viewBtn);
     actions.appendChild(deleteBtn);
+
+    header.appendChild(info);
     header.appendChild(actions);
 
     const canvasWrapper = document.createElement('div');
     canvasWrapper.className = 'relative rounded-3xl border border-white/10 bg-white/5 h-[420px] overflow-hidden';
 
     const canvas = document.createElement('canvas');
+    canvas.classList.add('hidden');
     canvasWrapper.appendChild(canvas);
 
     const message = document.createElement('div');
-    message.className = 'hidden absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-white/60';
+    message.className = 'absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-white/60';
+    message.textContent = 'Carregamento automático quando o cartão estiver visível.';
     canvasWrapper.appendChild(message);
 
     const details = document.createElement('p');
     details.className = 'text-xs text-white/50 uppercase tracking-widest';
-    const valueFields = Array.isArray(chart.value_fields) ? chart.value_fields : [];
-    details.textContent = `Eixo: ${chart.dimension_field} • Valores: ${valueFields.length ? valueFields.join(', ') : '-'}`;
 
     card.appendChild(header);
     card.appendChild(canvasWrapper);
     card.appendChild(details);
 
-    renderChartInstance(chart, canvas, message);
+    const entry = {
+        id: chart.id,
+        card,
+        titleEl: title,
+        metaEl: meta,
+        detailsEl: details,
+        canvas,
+        messageEl: message,
+        viewBtn,
+        deleteBtn,
+        rendered: false,
+        isVisible: false,
+        needsRender: true,
+        renderToken: 0,
+        targetSignature: null,
+        renderedSignature: null,
+        resizeObserver: null,
+        resizeFrame: null
+    };
 
-    return card;
+    if (typeof window !== 'undefined' && window.ResizeObserver) {
+        try {
+            entry.resizeObserver = new ResizeObserver(() => scheduleCanvasResize(entry));
+            entry.resizeObserver.observe(canvasWrapper);
+        } catch (error) {
+            entry.resizeObserver = null;
+        }
+    }
+
+    ensurePreviewResizeHandler();
+
+    const observer = ensureLazyObserver();
+    if (observer) {
+        observer.observe(card);
+    } else {
+        entry.isVisible = true;
+    }
+
+    return entry;
 }
 
-function destroyAllCharts() {
-    chartInstances.forEach((instance) => {
-        if (instance && typeof instance.destroy === 'function') {
-            instance.destroy();
+function updateChartCard(entry, chart) {
+    if (!entry) return;
+    entry.card.dataset.chartId = chart.id;
+
+    const chartLabel = getChartTypeLabel(chart.chart_type);
+    const categoryLabel = slugToLabel(chart.categoria);
+    const titleText = chart.nome || `${chartLabel} - ${categoryLabel}`;
+    if (entry.titleEl && entry.titleEl.textContent !== titleText) {
+        entry.titleEl.textContent = titleText;
+    }
+
+    if (entry.metaEl) {
+        const metaText = `${categoryLabel} • ${chartLabel}`;
+        if (entry.metaEl.textContent !== metaText) {
+            entry.metaEl.textContent = metaText;
         }
-    });
-    chartInstances.clear();
+    }
+
+    const valueFields = Array.isArray(chart.value_fields) ? chart.value_fields : [];
+    if (entry.detailsEl) {
+        const detailsText = `Eixo: ${chart.dimension_field || '-'} • Valores: ${valueFields.length ? valueFields.join(', ') : '-'}`;
+        if (entry.detailsEl.textContent !== detailsText) {
+            entry.detailsEl.textContent = detailsText;
+        }
+    }
+
+    if (entry.viewBtn) {
+        entry.viewBtn.dataset.chartId = chart.id;
+    }
+    if (entry.deleteBtn) {
+        entry.deleteBtn.dataset.chartId = chart.id;
+    }
+}
+
+function ensureChartCard(chart) {
+    let entry = state.chartCards.get(chart.id);
+    if (!entry) {
+        entry = createChartCardEntry(chart);
+        state.chartCards.set(chart.id, entry);
+    }
+
+    updateChartCard(entry, chart);
+
+    entry.targetSignature = `${state.renderVersion}:${computeChartSignature(chart)}`;
+    if (entry.renderedSignature !== entry.targetSignature) {
+        entry.needsRender = true;
+        if (!entry.isVisible) {
+            showCardPlaceholder(entry, 'Carregamento automático quando o cartão estiver visível.');
+        }
+    }
+
+    return entry;
+}
+
+function removeChartCard(chartId) {
+    const entry = state.chartCards.get(chartId);
+    if (!entry) return;
+
+    if (entry.resizeObserver) {
+        try {
+            entry.resizeObserver.disconnect();
+        } catch (error) {
+            /* noop */
+        }
+    }
+
+    if (state.lazyObserver) {
+        try {
+            state.lazyObserver.unobserve(entry.card);
+        } catch (error) {
+            /* noop */
+        }
+    }
+
+    const instance = chartInstances.get(chartId);
+    if (instance && typeof instance.destroy === 'function') {
+        instance.destroy();
+    }
+    chartInstances.delete(chartId);
+
+    if (entry.card?.parentElement) {
+        entry.card.parentElement.removeChild(entry.card);
+    }
+
+    state.chartCards.delete(chartId);
+}
+
+function scheduleChartRender(chartId) {
+    const entry = state.chartCards.get(chartId);
+    if (!entry) return;
+    if (!entry.isVisible) {
+        entry.needsRender = true;
+        return;
+    }
+    if (!entry.needsRender && entry.rendered) {
+        return;
+    }
+    if (state.pendingRenders.has(chartId)) {
+        return;
+    }
+    state.pendingRenders.add(chartId);
+    scheduleIdle(() => {
+        state.pendingRenders.delete(chartId);
+        const chart = state.charts.find((item) => item.id === chartId);
+        if (!chart) {
+            return;
+        }
+        const latestEntry = state.chartCards.get(chartId);
+        if (!latestEntry) {
+            return;
+        }
+        renderChartPreview(chart, latestEntry);
+    }, 180);
+}
+
+function renderChartPreview(chart, entry) {
+    if (!entry) return;
+
+    entry.needsRender = false;
+    entry.renderToken = (entry.renderToken || 0) + 1;
+    const token = entry.renderToken;
+
+    showCardPlaceholder(entry, 'Carregando visualização...');
+
+    renderChartInstance(chart, entry.canvas, entry.messageEl, { disableAnimation: true, keepMessage: true })
+        .then((instance) => {
+            if (token !== entry.renderToken) {
+                return;
+            }
+            entry.renderedSignature = entry.targetSignature;
+            if (instance) {
+                entry.rendered = true;
+                hideCardPlaceholder(entry);
+                scheduleCanvasResize(entry);
+            } else {
+                entry.rendered = false;
+                entry.messageEl?.classList.remove('hidden');
+            }
+        })
+        .catch(() => {
+            if (token !== entry.renderToken) {
+                return;
+            }
+            entry.rendered = false;
+        });
 }
 
 function destroyViewChartInstance() {
@@ -763,22 +1128,33 @@ function renderViewModalChart(chart) {
     state.viewRenderToken += 1;
     const token = state.viewRenderToken;
     destroyViewChartInstance();
-    elements.viewChartCanvas.classList.add('hidden');
+
     if (elements.viewChartMessage) {
-        elements.viewChartMessage.classList.add('hidden');
-        elements.viewChartMessage.textContent = '';
+        elements.viewChartMessage.classList.remove('hidden');
+        elements.viewChartMessage.textContent = 'Carregando visualização...';
     }
-    fetchDataset(chart.categoria)
-        .then((dataset) => {
+    elements.viewChartCanvas.classList.add('hidden');
+
+    renderChartInstance(chart, elements.viewChartCanvas, elements.viewChartMessage, {
+        instanceStore: viewChartInstances,
+        disableAnimation: false,
+        keepMessage: true
+    })
+        .then((instance) => {
             if (token !== state.viewRenderToken) {
                 return;
             }
-            const records = Array.isArray(dataset?.records) ? dataset.records : [];
-            const valueFields = Array.isArray(chart.value_fields) ? chart.value_fields : [];
-            const { labels, series } = prepareChartData(records, chart.dimension_field, valueFields);
-            const result = drawChart({ ...chart, value_fields: valueFields }, elements.viewChartCanvas, elements.viewChartMessage, labels, series, viewChartInstances);
-            if (!result && token === state.viewRenderToken && elements.viewChartMessage) {
+            if (instance) {
+                elements.viewChartCanvas.classList.remove('hidden');
+                if (elements.viewChartMessage) {
+                    elements.viewChartMessage.classList.add('hidden');
+                    elements.viewChartMessage.textContent = '';
+                }
+            } else if (elements.viewChartMessage) {
                 elements.viewChartMessage.classList.remove('hidden');
+                if (!elements.viewChartMessage.textContent) {
+                    elements.viewChartMessage.textContent = 'Não há dados suficientes para renderizar este gráfico.';
+                }
             }
         })
         .catch((error) => {
@@ -787,7 +1163,7 @@ function renderViewModalChart(chart) {
             }
             if (elements.viewChartMessage) {
                 elements.viewChartMessage.classList.remove('hidden');
-                elements.viewChartMessage.textContent = error.message || 'Falha ao carregar dados do gráfico.';
+                elements.viewChartMessage.textContent = error?.message || 'Falha ao carregar dados do gráfico.';
             }
             elements.viewChartCanvas.classList.add('hidden');
         });
@@ -843,16 +1219,42 @@ function showNextViewChart() {
     renderViewModalChart(nextChart);
 }
 
+function prefetchDatasetsForCharts(charts, limit = 3) {
+    const categories = [];
+    charts.forEach((chart) => {
+        const category = chart.categoria;
+        if (!category) return;
+        if (state.datasets.has(category) || state.datasetPromises.has(category) || state.prefetchedCategories.has(category)) {
+            return;
+        }
+        if (!categories.includes(category)) {
+            categories.push(category);
+        }
+    });
+    categories.slice(0, limit).forEach((category, index) => {
+        state.prefetchedCategories.add(category);
+        scheduleIdle(() => {
+            fetchDataset(category).catch(() => {});
+        }, 200 + index * 150);
+    });
+}
+
 function renderCharts() {
     if (!elements.chartsGrid) return;
-    destroyAllCharts();
-    elements.chartsGrid.innerHTML = '';
+
     if (!state.charts.length) {
         if (elements.chartsEmptyState) {
             elements.chartsEmptyState.classList.remove('hidden');
         }
         if (elements.chartsSubtitle) {
             elements.chartsSubtitle.textContent = 'Crie seu primeiro gráfico para compartilhar insights das categorias da Análise JP.';
+        }
+        Array.from(state.chartCards.keys()).forEach((chartId) => removeChartCard(chartId));
+        if (state.currentViewId !== null) {
+            closeViewModal();
+            updateViewModalNavigation();
+        } else {
+            updateViewModalNavigation();
         }
         return;
     }
@@ -864,10 +1266,36 @@ function renderCharts() {
         elements.chartsSubtitle.textContent = 'Explore as visualizações salvas para este workflow.';
     }
 
+    const existingIds = new Set(state.chartCards.keys());
+    let previousCard = null;
+
     state.charts.forEach((chart) => {
-        const card = createChartCard(chart);
-        elements.chartsGrid.appendChild(card);
+        const entry = ensureChartCard(chart);
+        existingIds.delete(chart.id);
+
+        const card = entry.card;
+        if (card.parentElement !== elements.chartsGrid) {
+            elements.chartsGrid.appendChild(card);
+        }
+
+        if (previousCard) {
+            if (previousCard.nextSibling !== card) {
+                elements.chartsGrid.insertBefore(card, previousCard.nextSibling);
+            }
+        } else if (elements.chartsGrid.firstChild !== card) {
+            elements.chartsGrid.insertBefore(card, elements.chartsGrid.firstChild);
+        }
+
+        previousCard = card;
+
+        if (entry.isVisible) {
+            scheduleChartRender(chart.id);
+        } else if (!entry.rendered) {
+            showCardPlaceholder(entry, 'Carregamento automático quando o cartão estiver visível.');
+        }
     });
+
+    existingIds.forEach((chartId) => removeChartCard(chartId));
 
     if (state.currentViewId !== null) {
         const currentChart = state.charts.find((item) => item.id === state.currentViewId);
@@ -883,6 +1311,8 @@ function renderCharts() {
     } else {
         updateViewModalNavigation();
     }
+
+    prefetchDatasetsForCharts(state.charts.slice(0, 4));
 }
 
 async function refreshCharts() {
@@ -895,6 +1325,7 @@ async function refreshCharts() {
             throw new Error(data?.error || 'Não foi possível atualizar os gráficos.');
         }
         state.charts = Array.isArray(data) ? data : [];
+        bumpRenderVersion();
         renderCharts();
         showToast('Galeria atualizada com sucesso.');
     } catch (error) {
@@ -958,6 +1389,7 @@ async function submitChart(event) {
         }
         if (data?.grafico) {
             state.charts.unshift(data.grafico);
+            bumpRenderVersion();
             renderCharts();
             showToast('Gráfico criado com sucesso.');
             closeModal();
@@ -982,6 +1414,7 @@ async function confirmDelete() {
             throw new Error(data?.error || 'Não foi possível remover o gráfico.');
         }
         state.charts = state.charts.filter((chart) => chart.id !== state.pendingDelete);
+        bumpRenderVersion();
         chartInstances.get(state.pendingDelete)?.destroy();
         chartInstances.delete(state.pendingDelete);
         renderCharts();

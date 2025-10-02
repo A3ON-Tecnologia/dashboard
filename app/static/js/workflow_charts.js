@@ -13,10 +13,14 @@ const state = {
     selectedIndicators: [],
     selectedMetrics: [METRIC_OPTIONS[0].value],
     activeDropdown: null,
-    resizeObservers: new Map(),
     currentViewId: null,
     viewRenderToken: 0,
-    viewResizeHandler: null
+    viewResizeHandler: null,
+    chartNodes: new Map(),
+    lazyObserver: null,
+    pendingRenders: new Set(),
+    previewResizeHandler: null,
+    renderVersion: 0
 };
 
 const elements = {
@@ -65,6 +69,33 @@ const chartPalette = Array.isArray(ctx.themePalette) && ctx.themePalette.length
     : ['#3B82F6', '#22D3EE', '#A855F7', '#F97316', '#14B8A6', '#FACC15'];
 
 const seriesFriendlyNames = Object.fromEntries(METRIC_OPTIONS.map((option) => [option.value, option.label]));
+
+function createThrottled(fn, delay = 120) {
+    let timeoutId = null;
+    let lastArgs = null;
+    return function throttled(...args) {
+        lastArgs = args;
+        if (timeoutId) {
+            return;
+        }
+        timeoutId = setTimeout(() => {
+            timeoutId = null;
+            fn.apply(this, lastArgs);
+        }, delay);
+    };
+}
+
+function scheduleIdle(work, timeout = 150) {
+    if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+        window.requestIdleCallback(work, { timeout });
+    } else {
+        setTimeout(work, Math.min(timeout, 120));
+    }
+}
+
+function bumpRenderVersion() {
+    state.renderVersion += 1;
+}
 
 function logout() {
     fetch('/logout')
@@ -405,6 +436,7 @@ function handleChartSubmit(event) {
                 throw new Error(data.error || 'Erro ao criar grafico.');
             }
             state.charts.unshift(data.grafico);
+            bumpRenderVersion();
             renderCharts();
             closeChartModal();
             showToast(data.message || 'Grafico criado com sucesso.', 'success');
@@ -721,7 +753,7 @@ function updateViewModalContent(chart) {
 
 function ensureViewResizeHandler() {
     if (state.viewResizeHandler || typeof window === 'undefined') return;
-    state.viewResizeHandler = () => {
+    const resize = () => {
         if (!isViewModalOpen() || !elements.viewChartCanvas) return;
         try {
             Plotly.Plots.resize(elements.viewChartCanvas);
@@ -729,6 +761,7 @@ function ensureViewResizeHandler() {
             /* noop */
         }
     };
+    state.viewResizeHandler = createThrottled(resize, 160);
     window.addEventListener('resize', state.viewResizeHandler, { passive: true });
 }
 
@@ -860,22 +893,434 @@ function showNextViewChart() {
     updateViewModalContent(nextChart);
     renderViewModalChart(nextChart);
 }
+
+function computeChartSignature(chart) {
+    const metricsList = getChartMetrics(chart);
+    return JSON.stringify({
+        id: chart.id,
+        nome: chart.nome,
+        chartType: chart.chart_type || chart.chartType,
+        metric: chart.metric || null,
+        metrics: metricsList,
+        indicators: Array.isArray(chart.indicators) ? chart.indicators : [],
+        colors: Array.isArray(chart.colors) ? chart.colors : [],
+        updatedAt: chart.updated_at || chart.updatedAt || null
+    });
+}
+
+function showCardPlaceholder(entry, message) {
+    if (!entry?.placeholder) return;
+    if (typeof message === 'string') {
+        entry.placeholder.textContent = message;
+    }
+    entry.placeholder.classList.remove('hidden');
+}
+
+function hideCardPlaceholder(entry) {
+    if (!entry?.placeholder) return;
+    entry.placeholder.classList.add('hidden');
+}
+
+function destroyCardPlot(entry) {
+    if (!entry?.plotCanvas) return;
+    try {
+        Plotly.purge(entry.plotCanvas);
+    } catch (error) {
+        /* noop */
+    }
+    entry.plotCanvas.innerHTML = '';
+}
+
+function schedulePlotResize(entry) {
+    if (!entry || !entry.plotCanvas) return;
+    if (entry.resizeFrame) {
+        return;
+    }
+    const executeResize = () => {
+        entry.resizeFrame = null;
+        try {
+            Plotly.Plots.resize(entry.plotCanvas);
+        } catch (error) {
+            /* noop */
+        }
+    };
+    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+        entry.resizeFrame = window.requestAnimationFrame(executeResize);
+    } else {
+        entry.resizeFrame = setTimeout(executeResize, 32);
+    }
+}
+
+function ensurePreviewResizeHandler() {
+    if (state.previewResizeHandler || typeof window === 'undefined') return;
+    state.previewResizeHandler = createThrottled(() => {
+        state.chartNodes.forEach((entry) => {
+            if (entry.rendered) {
+                schedulePlotResize(entry);
+            }
+        });
+    }, 180);
+    window.addEventListener('resize', state.previewResizeHandler, { passive: true });
+}
+
+function ensureLazyObserver() {
+    if (state.lazyObserver) {
+        return state.lazyObserver;
+    }
+    if (typeof window === 'undefined' || typeof IntersectionObserver === 'undefined') {
+        return null;
+    }
+    state.lazyObserver = new IntersectionObserver((entries) => {
+        entries.forEach((observerEntry) => {
+            const chartId = Number.parseInt(observerEntry.target.dataset.chartId, 10);
+            if (!Number.isFinite(chartId)) return;
+            const cardEntry = state.chartNodes.get(chartId);
+            if (!cardEntry) return;
+            cardEntry.isVisible = observerEntry.isIntersecting || observerEntry.intersectionRatio > 0;
+            if (cardEntry.isVisible) {
+                scheduleChartRender(chartId);
+            }
+        });
+    }, { rootMargin: '200px 0px', threshold: 0.1 });
+    return state.lazyObserver;
+}
+
+function createChartCardEntry(chart) {
+    const card = document.createElement('article');
+    card.className = `glass-panel ${ctx.themeClasses?.modalSurface || ''} border border-white/10 rounded-3xl p-5 space-y-5 shadow-lg shadow-blue-500/10`;
+    card.dataset.chartId = chart.id;
+
+    const header = document.createElement('div');
+    header.className = 'flex items-start justify-between gap-3';
+
+    const info = document.createElement('div');
+    info.className = 'space-y-1';
+
+    const title = document.createElement('h3');
+    title.className = 'text-lg font-semibold';
+    info.appendChild(title);
+
+    const typeLine = document.createElement('p');
+    typeLine.className = 'text-xs text-white/50 uppercase tracking-widest';
+    info.appendChild(typeLine);
+
+    const metricsLine = document.createElement('p');
+    metricsLine.className = 'text-xs text-white/60';
+    info.appendChild(metricsLine);
+
+    const indicatorsLine = document.createElement('p');
+    indicatorsLine.className = 'text-xs text-white/60';
+    info.appendChild(indicatorsLine);
+
+    const actions = document.createElement('div');
+    actions.className = 'flex items-center gap-2';
+
+    const viewBtn = document.createElement('button');
+    viewBtn.className = 'p-2 rounded-full border border-transparent text-white/60 hover:text-blue-300 hover:border-blue-300 transition-colors';
+    viewBtn.dataset.viewChart = chart.id;
+    viewBtn.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12s3.75-6.75 9.75-6.75S21.75 12 21.75 12s-3.75 6.75-9.75 6.75S2.25 12 2.25 12z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 15.75a3.75 3.75 0 1 0 0-7.5 3.75 3.75 0 0 0 0 7.5z"/>
+            </svg>
+        `;
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'p-2 rounded-full border border-transparent text-white/60 hover:text-rose-400 hover:border-rose-400 transition-colors';
+    deleteBtn.dataset.deleteChart = chart.id;
+    deleteBtn.dataset.chartName = chart.nome || chart.chart_type || 'este grafico';
+    deleteBtn.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+        `;
+
+    actions.appendChild(viewBtn);
+    actions.appendChild(deleteBtn);
+
+    header.appendChild(info);
+    header.appendChild(actions);
+
+    const plotWrapper = document.createElement('div');
+    plotWrapper.className = 'chart-plot-wrapper';
+    plotWrapper.style.height = '';
+    plotWrapper.style.aspectRatio = '';
+    plotWrapper.classList.add('relative', 'overflow-hidden');
+
+    const plotCanvas = document.createElement('div');
+    plotCanvas.className = 'chart-plot-canvas';
+    plotCanvas.style.width = '100%';
+    plotCanvas.style.height = '100%';
+
+    const placeholder = document.createElement('div');
+    placeholder.className = 'absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-white/60 pointer-events-none bg-transparent';
+    placeholder.textContent = 'Carregamento automático quando o cartão estiver visível.';
+
+    plotWrapper.appendChild(plotCanvas);
+    plotWrapper.appendChild(placeholder);
+
+    card.appendChild(header);
+    card.appendChild(plotWrapper);
+
+    const entry = {
+        id: chart.id,
+        card,
+        titleEl: title,
+        typeLineEl: typeLine,
+        metricsLineEl: metricsLine,
+        indicatorsLineEl: indicatorsLine,
+        viewBtn,
+        deleteBtn,
+        plotWrapper,
+        plotCanvas,
+        placeholder,
+        rendered: false,
+        isVisible: false,
+        needsRender: true,
+        currentSizing: null,
+        renderToken: 0,
+        renderedSignature: null,
+        targetSignature: null,
+        resizeObserver: null,
+        resizeFrame: null
+    };
+
+    if (typeof window !== 'undefined' && window.ResizeObserver) {
+        try {
+            entry.resizeObserver = new ResizeObserver(() => schedulePlotResize(entry));
+            entry.resizeObserver.observe(plotWrapper);
+        } catch (error) {
+            entry.resizeObserver = null;
+        }
+    }
+
+    ensurePreviewResizeHandler();
+
+    const observer = ensureLazyObserver();
+    if (observer) {
+        observer.observe(card);
+    } else {
+        entry.isVisible = true;
+    }
+
+    return entry;
+}
+
+function updateChartCard(entry, chart) {
+    if (!entry) return;
+    entry.card.dataset.chartId = chart.id;
+
+    const chartLabel = chartTypeLabel(chart.chart_type || chart.chartType);
+    const metricsList = getChartMetrics(chart);
+    const metricSummary = metricsList.length ? metricsList.map(metricLabel).join(', ') : metricLabel(chart.metric || '');
+    const indicatorSummary = Array.isArray(chart.indicators) && chart.indicators.length
+        ? chart.indicators.join(', ')
+        : 'n/d';
+
+    const titleText = chart.nome || chartLabel || chart.chart_type || 'Grafico';
+    if (entry.titleEl && entry.titleEl.textContent !== titleText) {
+        entry.titleEl.textContent = titleText;
+    }
+
+    if (entry.typeLineEl) {
+        if (chartLabel) {
+            entry.typeLineEl.classList.remove('hidden');
+            const typeText = `Tipo: ${chartLabel}`;
+            if (entry.typeLineEl.textContent !== typeText) {
+                entry.typeLineEl.textContent = typeText;
+            }
+        } else {
+            entry.typeLineEl.classList.add('hidden');
+            entry.typeLineEl.textContent = '';
+        }
+    }
+
+    if (entry.metricsLineEl) {
+        const metricsText = `Metricas: ${metricSummary || 'n/d'}`;
+        if (entry.metricsLineEl.textContent !== metricsText) {
+            entry.metricsLineEl.textContent = metricsText;
+        }
+    }
+
+    if (entry.indicatorsLineEl) {
+        const indicatorsText = `Indicadores: ${indicatorSummary}`;
+        if (entry.indicatorsLineEl.textContent !== indicatorsText) {
+            entry.indicatorsLineEl.textContent = indicatorsText;
+        }
+    }
+
+    if (entry.viewBtn) {
+        entry.viewBtn.dataset.viewChart = chart.id;
+    }
+    if (entry.deleteBtn) {
+        entry.deleteBtn.dataset.deleteChart = chart.id;
+        entry.deleteBtn.dataset.chartName = titleText;
+    }
+
+    const sizing = getChartContainerSizing(chart.chart_type || chart.chartType);
+    const nextSizing = {
+        minHeight: sizing?.minHeight || '460px',
+        maxHeight: sizing?.maxHeight || '',
+        aspectRatio: sizing?.aspectRatio || ''
+    };
+
+    if (!entry.currentSizing || entry.currentSizing.minHeight !== nextSizing.minHeight) {
+        entry.plotWrapper.style.minHeight = nextSizing.minHeight;
+    }
+    if (!entry.currentSizing || entry.currentSizing.maxHeight !== nextSizing.maxHeight) {
+        if (nextSizing.maxHeight) {
+            entry.plotWrapper.style.maxHeight = nextSizing.maxHeight;
+        } else {
+            entry.plotWrapper.style.removeProperty('maxHeight');
+        }
+    }
+    if (!entry.currentSizing || entry.currentSizing.aspectRatio !== nextSizing.aspectRatio) {
+        if (nextSizing.aspectRatio) {
+            entry.plotWrapper.style.aspectRatio = nextSizing.aspectRatio;
+        } else {
+            entry.plotWrapper.style.removeProperty('aspectRatio');
+        }
+    }
+
+    entry.currentSizing = nextSizing;
+
+    if (!ensureLazyObserver()) {
+        entry.isVisible = true;
+    }
+}
+
+function ensureChartCard(chart) {
+    let entry = state.chartNodes.get(chart.id);
+    if (!entry) {
+        entry = createChartCardEntry(chart);
+        state.chartNodes.set(chart.id, entry);
+    }
+
+    updateChartCard(entry, chart);
+
+    entry.targetSignature = `${state.renderVersion}:${computeChartSignature(chart)}`;
+    if (entry.renderedSignature !== entry.targetSignature) {
+        entry.needsRender = true;
+        if (!entry.isVisible) {
+            showCardPlaceholder(entry, 'Carregamento automático quando o cartão estiver visível.');
+        }
+    }
+
+    return entry;
+}
+
+function removeChartCard(chartId) {
+    const entry = state.chartNodes.get(chartId);
+    if (!entry) return;
+
+    if (entry.resizeObserver) {
+        try {
+            entry.resizeObserver.disconnect();
+        } catch (error) {
+            /* noop */
+        }
+    }
+
+    if (state.lazyObserver) {
+        try {
+            state.lazyObserver.unobserve(entry.card);
+        } catch (error) {
+            /* noop */
+        }
+    }
+
+    destroyCardPlot(entry);
+
+    if (entry.card?.parentElement) {
+        entry.card.parentElement.removeChild(entry.card);
+    }
+
+    state.chartNodes.delete(chartId);
+}
+
+function scheduleChartRender(chartId) {
+    const entry = state.chartNodes.get(chartId);
+    if (!entry) return;
+    if (!entry.isVisible) {
+        entry.needsRender = true;
+        return;
+    }
+    if (!entry.needsRender && entry.rendered) {
+        return;
+    }
+    if (state.pendingRenders.has(chartId)) {
+        return;
+    }
+    state.pendingRenders.add(chartId);
+    scheduleIdle(() => {
+        state.pendingRenders.delete(chartId);
+        const chart = state.charts.find((item) => item.id === chartId);
+        if (!chart) {
+            return;
+        }
+        const latestEntry = state.chartNodes.get(chartId);
+        if (!latestEntry) {
+            return;
+        }
+        renderChartPreview(chart, latestEntry);
+    }, 180);
+}
+
+function renderChartPreview(chart, entry) {
+    if (!entry) return;
+
+    entry.needsRender = false;
+    const targetSignature = entry.targetSignature || computeChartSignature(chart);
+    entry.renderToken = (entry.renderToken || 0) + 1;
+    const token = entry.renderToken;
+
+    showCardPlaceholder(entry, 'Carregando visualização...');
+
+    const figure = buildFigure(chart);
+    if (!figure) {
+        destroyCardPlot(entry);
+        showCardPlaceholder(entry, 'Não há dados suficientes para exibir este gráfico.');
+        entry.rendered = true;
+        entry.renderedSignature = targetSignature;
+        return;
+    }
+
+    const layout = { ...figure.layout, transition: { duration: 0, easing: 'linear' } };
+    const config = {
+        responsive: true,
+        displaylogo: false,
+        modeBarButtonsToRemove: ['lasso2d', 'autoScale2d']
+    };
+
+    Plotly.react(entry.plotCanvas, figure.data, layout, config)
+        .then(() => {
+            if (token !== entry.renderToken) {
+                return;
+            }
+            entry.rendered = true;
+            entry.renderedSignature = targetSignature;
+            hideCardPlaceholder(entry);
+            schedulePlotResize(entry);
+        })
+        .catch((error) => {
+            if (token !== entry.renderToken) {
+                return;
+            }
+            destroyCardPlot(entry);
+            showCardPlaceholder(entry, error?.message || 'Não foi possível renderizar este gráfico.');
+            entry.rendered = false;
+        });
+}
+
 function renderCharts() {
     if (!elements.chartsGrid) return;
-    elements.chartsGrid.innerHTML = '';
-
-    if (state.resizeObservers instanceof Map) {
-        state.resizeObservers.forEach((observer) => {
-            try { observer.disconnect(); } catch (error) { /* noop */ }
-        });
-        state.resizeObservers.clear();
-    }
 
     if (!state.charts.length) {
         elements.emptyState?.classList.remove('hidden');
         if (elements.chartsSubtitle) {
             elements.chartsSubtitle.textContent = 'Crie seu primeiro grafico para transformar os indicadores em insights visuais.';
         }
+        Array.from(state.chartNodes.keys()).forEach((chartId) => removeChartCard(chartId));
         if (isViewModalOpen() || state.currentViewId !== null) {
             closeViewModal();
         } else {
@@ -890,129 +1335,34 @@ function renderCharts() {
         elements.chartsSubtitle.textContent = 'Explore visualizacoes criadas para este workflow.';
     }
 
+    const existingIds = new Set(state.chartNodes.keys());
+    let previousCard = null;
+
     state.charts.forEach((chart) => {
-        const card = document.createElement('article');
-        card.className = `glass-panel ${ctx.themeClasses?.modalSurface || ''} border border-white/10 rounded-3xl p-5 space-y-5 shadow-lg shadow-blue-500/10`;
-        card.dataset.chartId = chart.id;
+        const entry = ensureChartCard(chart);
+        existingIds.delete(chart.id);
 
-        const header = document.createElement('div');
-        header.className = 'flex items-start justify-between gap-3';
-
-        const metricsList = getChartMetrics(chart);
-        const metricSummary = metricsList.length ? metricsList.map(metricLabel).join(', ') : metricLabel(chart.metric || '');
-        const indicatorSummary = Array.isArray(chart.indicators) && chart.indicators.length
-            ? chart.indicators.join(', ')
-            : 'n/d';
-        const chartLabel = chartTypeLabel(chart.chart_type || chart.chartType);
-
-        const info = document.createElement('div');
-        info.className = 'space-y-1';
-
-        const title = document.createElement('h3');
-        title.className = 'text-lg font-semibold';
-        title.textContent = chart.nome || chartLabel || chart.chart_type || 'Grafico';
-        info.appendChild(title);
-
-        if (chartLabel) {
-            const typeLine = document.createElement('p');
-            typeLine.className = 'text-xs text-white/50 uppercase tracking-widest';
-            typeLine.textContent = `Tipo: ${chartLabel}`;
-            info.appendChild(typeLine);
+        const card = entry.card;
+        if (card.parentElement !== elements.chartsGrid) {
+            elements.chartsGrid.appendChild(card);
         }
 
-        const metricsLine = document.createElement('p');
-        metricsLine.className = 'text-xs text-white/60';
-        metricsLine.textContent = `Metricas: ${metricSummary || 'n/d'}`;
-        info.appendChild(metricsLine);
-
-        const indicatorsLine = document.createElement('p');
-        indicatorsLine.className = 'text-xs text-white/60';
-        indicatorsLine.textContent = `Indicadores: ${indicatorSummary}`;
-        info.appendChild(indicatorsLine);
-
-        const actions = document.createElement('div');
-        actions.className = 'flex items-center gap-2';
-
-        const viewBtn = document.createElement('button');
-        viewBtn.className = 'p-2 rounded-full border border-transparent text-white/60 hover:text-blue-300 hover:border-blue-300 transition-colors';
-        viewBtn.dataset.viewChart = chart.id;
-        viewBtn.innerHTML = `
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12s3.75-6.75 9.75-6.75S21.75 12 21.75 12s-3.75 6.75-9.75 6.75S2.25 12 2.25 12z" />
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 15.75a3.75 3.75 0 1 0 0-7.5 3.75 3.75 0 0 0 0 7.5z" />
-            </svg>
-        `;
-        actions.appendChild(viewBtn);
-
-        const deleteBtn = document.createElement('button');
-        deleteBtn.className = 'p-2 rounded-full border border-transparent text-white/60 hover:text-rose-400 hover:border-rose-400 transition-colors';
-        deleteBtn.dataset.deleteChart = chart.id;
-        deleteBtn.dataset.chartName = chart.nome || chartLabel || chart.chart_type || 'este grafico';
-        deleteBtn.innerHTML = `
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-            </svg>
-        `;
-        actions.appendChild(deleteBtn);
-
-        header.appendChild(info);
-        header.appendChild(actions);
-
-        const plotId = `chart-plot-${chart.id}`;
-        const sizing = getChartContainerSizing(chart.chart_type || chart.chartType);
-
-        const plotWrapper = document.createElement('div');
-        plotWrapper.className = 'chart-plot-wrapper';
-        plotWrapper.style.minHeight = sizing?.minHeight || '460px';
-        if (sizing?.maxHeight) {
-            plotWrapper.style.maxHeight = sizing.maxHeight;
-        } else {
-            plotWrapper.style.removeProperty('maxHeight');
-        }
-        plotWrapper.style.height = '';
-        plotWrapper.style.aspectRatio = sizing?.aspectRatio || '';
-
-        const plotCanvas = document.createElement('div');
-        plotCanvas.id = plotId;
-        plotCanvas.className = 'chart-plot-canvas';
-        plotCanvas.style.width = '100%';
-        plotCanvas.style.height = '100%';
-        plotWrapper.appendChild(plotCanvas);
-
-        card.appendChild(header);
-        card.appendChild(plotWrapper);
-        elements.chartsGrid.appendChild(card);
-
-        const figure = buildFigure(chart);
-        if (figure) {
-            const config = {
-                responsive: true,
-                displaylogo: false,
-                modeBarButtonsToRemove: ['lasso2d', 'autoScale2d']
-            };
-
-            Plotly.newPlot(plotCanvas, figure.data, figure.layout, config).then(() => {
-                try { Plotly.Plots.resize(plotCanvas); } catch (error) { /* noop */ }
-            });
-
-            if (window.ResizeObserver) {
-                try {
-                    const observer = new ResizeObserver(() => {
-                        try { Plotly.Plots.resize(plotCanvas); } catch (resizeError) { /* noop */ }
-                    });
-                    observer.observe(plotWrapper);
-                    state.resizeObservers.set(chart.id, observer);
-                } catch (error) {
-                    window.addEventListener('resize', () => {
-                        try { Plotly.Plots.resize(plotCanvas); } catch (resizeError) { /* noop */ }
-                    }, { passive: true });
-                }
+        if (previousCard) {
+            if (previousCard.nextSibling !== card) {
+                elements.chartsGrid.insertBefore(card, previousCard.nextSibling);
             }
-        } else {
-            plotCanvas.className = 'chart-plot-canvas flex items-center justify-center text-sm text-white/60 text-center px-4';
-            plotCanvas.textContent = 'Nao foi possivel renderizar este grafico.';
+        } else if (elements.chartsGrid.firstChild !== card) {
+            elements.chartsGrid.insertBefore(card, elements.chartsGrid.firstChild);
+        }
+
+        previousCard = card;
+
+        if (entry.isVisible) {
+            scheduleChartRender(chart.id);
         }
     });
+
+    existingIds.forEach((chartId) => removeChartCard(chartId));
 
     if (state.currentViewId !== null) {
         const currentChart = state.charts.find((item) => item.id === state.currentViewId);
@@ -1035,6 +1385,7 @@ function refreshCharts() {
         .then((response) => response.json())
         .then((data) => {
             state.charts = Array.isArray(data) ? data : [];
+            bumpRenderVersion();
             renderCharts();
             showToast('Galeria atualizada.', 'success');
         })
@@ -1072,6 +1423,7 @@ function handleChartDeletion() {
                 throw new Error(data.error || 'Erro ao excluir grafico.');
             }
             state.charts = state.charts.filter((chart) => chart.id !== state.pendingDelete);
+            bumpRenderVersion();
             renderCharts();
             closeDeleteChartModal();
             showToast(data.message || 'Grafico excluido com sucesso.', 'success');
