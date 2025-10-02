@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, jsonify
+from flask import Blueprint, render_template, jsonify, redirect, url_for
 from flask_login import login_required, current_user
 from app.models.workflow import Workflow
 from app.services.theme_service import get_current_theme, update_user_theme
@@ -8,6 +8,8 @@ main_bp = Blueprint('main', __name__)
 @main_bp.route('/')
 def home():
     theme = get_current_theme()
+    if current_user.is_authenticated:
+        return redirect(url_for('main.dashboard'))
     return render_template('home.html', theme=theme)
 
 @main_bp.route('/dashboard')
