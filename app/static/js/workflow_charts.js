@@ -20,7 +20,9 @@ const state = {
     lazyObserver: null,
     pendingRenders: new Set(),
     previewResizeHandler: null,
-    renderVersion: 0
+    renderVersion: 0,
+    viewChartSignature: null,
+    viewChartRendered: false
 };
 
 const elements = {
@@ -772,24 +774,32 @@ function removeViewResizeHandler() {
 }
 
 function destroyViewChartInstance() {
-    if (elements.viewChartCanvas) {
-        try {
-            Plotly.purge(elements.viewChartCanvas);
-        } catch (error) {
-            /* noop */
-        }
-        elements.viewChartCanvas.innerHTML = '';
-        elements.viewChartCanvas.classList.add('hidden');
+    if (!elements.viewChartCanvas) return;
+    try {
+        Plotly.purge(elements.viewChartCanvas);
+    } catch (error) {
+        /* noop */
     }
+    elements.viewChartCanvas.innerHTML = '';
+    elements.viewChartCanvas.classList.add('hidden');
+    state.viewChartRendered = false;
+    state.viewChartSignature = null;
 }
 
-function renderViewModalChart(chart) {
+function renderViewModalChartImmediate(chart) {
     if (!chart || !elements.viewChartCanvas) return;
+    if (state.currentViewId !== chart.id) {
+        return;
+    }
+
+    const signature = computeChartSignature(chart);
+    if (state.viewChartRendered && state.viewChartSignature === signature) {
+        return;
+    }
+
     const figure = buildFigure(chart);
     state.viewRenderToken += 1;
     const token = state.viewRenderToken;
-
-    destroyViewChartInstance();
 
     if (!figure) {
         if (elements.viewChartMessage) {
@@ -797,6 +807,9 @@ function renderViewModalChart(chart) {
             elements.viewChartMessage.classList.remove('hidden');
         }
         removeViewResizeHandler();
+        elements.viewChartCanvas.classList.add('hidden');
+        state.viewChartRendered = false;
+        state.viewChartSignature = null;
         return;
     }
 
@@ -816,7 +829,7 @@ function renderViewModalChart(chart) {
         modeBarButtonsToRemove: ['lasso2d', 'autoScale2d']
     };
 
-    Plotly.newPlot(elements.viewChartCanvas, figure.data, layout, config)
+    Plotly.react(elements.viewChartCanvas, figure.data, layout, config)
         .then(() => {
             if (token !== state.viewRenderToken) {
                 return;
@@ -826,20 +839,26 @@ function renderViewModalChart(chart) {
             } catch (error) {
                 /* noop */
             }
+            state.viewChartRendered = true;
+            state.viewChartSignature = signature;
             ensureViewResizeHandler();
         })
         .catch((error) => {
             if (token !== state.viewRenderToken) {
                 return;
             }
-            destroyViewChartInstance();
             removeViewResizeHandler();
+            state.viewChartRendered = false;
+            state.viewChartSignature = null;
+            elements.viewChartCanvas.classList.add('hidden');
             if (elements.viewChartMessage) {
                 elements.viewChartMessage.textContent = error.message || 'Falha ao carregar o gráfico.';
                 elements.viewChartMessage.classList.remove('hidden');
             }
         });
 }
+
+const renderViewModalChart = createThrottled(renderViewModalChartImmediate, 140);
 
 function openViewModal(chart) {
     if (!chart || !elements.viewModal) return;
