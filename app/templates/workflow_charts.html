@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ workflow.nome }} - Graficos</title>
+    <title>{{ workflow.nome }} - Área de gráficos</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -17,10 +17,8 @@
                     }
                 }
             }
-        }
+        };
     </script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" integrity="sha512-V/7C1X8JYkGg4VITQW2N1GpStO2Qe6hwMRyYB9H9n1tFoZT3zh0ElBTtPlqvGjNFH6GwxQig1zXkG7rMG7HE2g==" crossorigin="anonymous" referrerpolicy="no-referrer" />
-    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
     <style>
         :root {
             --glass-border: rgba(255, 255, 255, 0.08);
@@ -32,55 +30,20 @@
             -webkit-backdrop-filter: blur(24px);
         }
 
-        .scale-in {
-            animation: scaleIn 0.45s ease forwards;
+        .fade-in {
+            animation: fadeIn 0.4s ease forwards;
         }
 
-        @keyframes scaleIn {
+        @keyframes fadeIn {
             0% {
                 opacity: 0;
-                transform: scale(0.94);
+                transform: translateY(8px);
             }
             100% {
                 opacity: 1;
-                transform: scale(1);
+                transform: translateY(0);
             }
         }
-
-    .chart-plot-wrapper {
-        position: relative;
-        width: 100%;
-        min-height: 460px;
-        overflow: hidden;
-        border-radius: 1.5rem;
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        background: linear-gradient(145deg, rgba(15, 23, 42, 0.55), rgba(15, 23, 42, 0.35));
-        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
-        transition: transform 0.35s ease, box-shadow 0.35s ease;
-    }
-
-    .chart-plot-wrapper::after {
-        content: '';
-        position: absolute;
-        inset: 0;
-        pointer-events: none;
-        background: radial-gradient(circle at top, rgba(59, 130, 246, 0.08), transparent 65%);
-        opacity: 0.7;
-    }
-
-    .chart-plot-wrapper:hover {
-        box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.25), 0 24px 65px -30px rgba(59, 130, 246, 0.55);
-        transform: translateY(-1px);
-    }
-
-    .chart-plot-canvas {
-        position: absolute;
-        inset: 0;
-        width: 100%;
-        height: 100%;
-    }
-
-
     </style>
 </head>
 <body class="{{ theme.bg }} {{ theme.text }} font-sans h-screen overflow-hidden">
@@ -89,7 +52,7 @@
 
         <main class="flex-1 h-full overflow-y-auto">
             <div class="max-w-7xl mx-auto px-6 md:px-10 py-10 space-y-8">
-                <header class="glass-panel {{ theme.modal }} border border-white/5 rounded-3xl p-8 shadow-2xl shadow-blue-500/10">
+                <header class="glass-panel {{ theme.modal }} border border-white/5 rounded-3xl p-8 shadow-2xl shadow-blue-500/10 fade-in">
                     <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
                         <div class="space-y-4">
                             <div class="flex items-center gap-4">
@@ -107,16 +70,16 @@
                                 </span>
                             </div>
                             <p class="text-white/70 max-w-3xl leading-relaxed">
-                                {{ workflow.descricao or 'Visualize seus indicadores em graficos interativos.' }}
+                                {{ workflow.descricao or 'A área de gráficos está temporariamente desativada. Continue utilizando os uploads normalmente.' }}
                             </p>
                             <p class="text-xs text-white/40 uppercase tracking-widest">
-                                Ultima atualizacao: {% if arquivo_atual and arquivo_atual.data_upload %}{{ arquivo_atual.data_upload|datetime_sp('%d/%m/%Y %H:%M') }}{% else %}Nenhum dado importado{% endif %}
+                                Última atualização: {% if arquivo_atual and arquivo_atual.data_upload %}{{ arquivo_atual.data_upload|datetime_sp('%d/%m/%Y %H:%M') }}{% else %}Nenhum dado importado{% endif %}
                             </p>
                         </div>
 
                         <div class="flex gap-4 flex-col sm:flex-row">
                             <button id="openCreateChartBtn" class="{{ theme.buttons.primary }} px-6 py-2.5 rounded-full text-sm font-semibold tracking-wide uppercase shadow-lg shadow-blue-500/20 transition-transform duration-300 hover:-translate-y-0.5">
-                                Criar grafico
+                                Criar gráfico
                             </button>
                             <button id="refreshChartsBtn" class="{{ theme.buttons.secondary }} px-6 py-2.5 rounded-full text-sm font-semibold tracking-wide uppercase transition-transform duration-300 hover:-translate-y-0.5">
                                 Atualizar
@@ -125,191 +88,26 @@
                     </div>
                 </header>
 
-                <section class="space-y-6">
-                    <div class="glass-panel {{ theme.modal }} border border-white/5 rounded-3xl p-6 md:p-7 shadow-xl shadow-blue-500/10">
-                        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
-                            <div class="space-y-2">
-                                <h2 class="text-2xl font-semibold tracking-tight">Galeria de graficos</h2>
-                                <p id="chartsSubtitle" class="text-sm text-white/60">{% if charts %}Explore visualizacoes criadas para este workflow.{% else %}Crie seu primeiro grafico para transformar os indicadores em insights visuais.{% endif %}</p>
-                            </div>
+                <section class="glass-panel {{ theme.modal }} border border-white/5 rounded-3xl p-8 md:p-10 shadow-xl shadow-blue-500/10 space-y-6 fade-in">
+                    <div class="space-y-2">
+                        <h2 class="text-2xl font-semibold tracking-tight">Galeria de gráficos</h2>
+                        <p class="text-sm text-white/60">Os gráficos deste workflow foram desativados. O botão acima foi mantido apenas para referência.</p>
+                    </div>
+
+                    <div class="border border-dashed border-white/10 rounded-2xl p-10 text-center space-y-4">
+                        <div class="w-12 h-12 mx-auto rounded-full border border-white/15 flex items-center justify-center text-white/50">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 3h18M3 12h18M3 21h18" />
+                            </svg>
                         </div>
-                        <div id="chartsEmptyState" class="{% if charts %}hidden{% endif %} border border-dashed border-white/10 rounded-2xl p-10 text-center space-y-4">
-                            <div class="w-12 h-12 mx-auto rounded-full border border-white/15 flex items-center justify-center text-white/50">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m6-6H6" />
-                                </svg>
-                            </div>
-                            <h3 class="text-lg font-semibold">Nenhum grafico criado ainda</h3>
-                            <p class="text-sm text-white/60 max-w-xl mx-auto">Use o botao "Criar grafico" para escolher o tipo, marcar os indicadores e personalizar as cores com a paleta do tema.</p>
-                            <button class="{{ theme.buttons.primary }} px-5 py-2.5 rounded-full text-sm uppercase tracking-wide" onclick="openChartModal()">Criar grafico agora</button>
-                        </div>
-                        <div id="chartsGrid" class="grid grid-cols-1 gap-6"></div>
+                        <h3 class="text-lg font-semibold text-white/80">Visualizações indisponíveis</h3>
+                        <p class="text-sm text-white/60 max-w-2xl mx-auto">
+                            A criação e exibição de gráficos não está mais disponível, mas você pode continuar importando arquivos e consultando os dados processados normalmente.
+                        </p>
                     </div>
                 </section>
             </div>
         </main>
     </div>
-
-    <div id="chartModal" class="fixed inset-0 hidden z-[80] items-center justify-center">
-        <div class="absolute inset-0 bg-slate-900/75 backdrop-blur-xl"></div>
-        <div class="relative glass-panel {{ theme.modal }} border border-white/10 rounded-3xl w-full max-w-2xl mx-auto p-8 space-y-6 scale-in">
-            <div class="flex items-start justify-between gap-4">
-                <div>
-                    <h2 class="text-2xl font-semibold tracking-tight">Configurar grafico</h2>
-                    <p class="text-sm text-white/60 mt-2">Escolha o tipo de grafico, marque metricas e indicadores, e ajuste as cores conforme o tema.</p>
-                </div>
-                <button id="closeChartModalBtn" class="w-10 h-10 rounded-full border border-white/10 hover:border-white/30 flex items-center justify-center transition-colors" title="Fechar">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-                    </svg>
-                </button>
-            </div>
-
-            <form id="chartForm" class="space-y-6">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div class="flex flex-col gap-2">
-                        <label for="chartTitle" class="text-xs uppercase tracking-widest text-white/50">Titulo do grafico</label>
-                        <input id="chartTitle" type="text" class="rounded-2xl px-4 py-3 bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-blue-500/60" placeholder="Ex: Evolucao do indicador">
-                    </div>
-                    <div class="flex flex-col gap-2">
-                        <label for="chartType" class="text-xs uppercase tracking-widest text-white/50">Tipo de grafico</label>
-                        <select id="chartType" class="rounded-2xl px-4 py-3 bg-white/5 border border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/60">
-                            <option value="bar">Barras</option>
-                            <option value="line">Linhas</option>
-                            <option value="area">Area</option>
-                            <option value="pie">Pizza</option>
-                            <option value="doughnut">Donut</option>
-                            <option value="radar">Radar</option>
-                            <option value="scatter">Dispersao</option>
-                            <option value="heatmap">Heatmap</option>
-                            <option value="gauge">Gauge</option>
-                            <option value="table">Tabela dinamica</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div class="flex flex-col gap-2">
-                        <span class="text-xs uppercase tracking-widest text-white/50">Metricas</span>
-                        <div class="relative">
-                            <button type="button" id="metricToggle" class="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left text-sm flex items-center justify-between gap-3 focus:outline-none focus:ring-2 focus:ring-blue-500/60">
-                                <span id="metricSelectionLabel" class="truncate">Selecionar metricas</span>
-                                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-white/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                                </svg>
-                            </button>
-                            <div id="metricDropdown" class="hidden absolute left-0 top-full mt-2 w-64 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-lg z-[120]">
-                                <div class="max-h-64 overflow-y-auto p-3 space-y-2" id="metricOptions"></div>
-                            </div>
-                        </div>
-                        <p class="text-[11px] text-white/40">Marque uma ou mais metricas para comparar.</p>
-                    </div>
-                    <div class="flex flex-col gap-2">
-                        <span class="text-xs uppercase tracking-widest text-white/50">Indicadores</span>
-                        <div class="relative">
-                            <button type="button" id="indicatorToggle" class="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left text-sm flex items-center justify-between gap-3 focus:outline-none focus:ring-2 focus:ring-blue-500/60">
-                                <span id="indicatorSelectionLabel" class="truncate">Selecionar indicadores</span>
-                                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-white/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                                </svg>
-                            </button>
-                            <div id="indicatorDropdown" class="hidden absolute left-0 top-full mt-2 w-72 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-lg z-[120]">
-                                <div class="max-h-72 overflow-y-auto p-3 space-y-2" id="indicatorOptions"></div>
-                            </div>
-                        </div>
-                        <p class="text-[11px] text-white/40">Escolha os indicadores que deseja exibir no grafico.</p>
-                    </div>
-                </div>
-
-                <div>
-                    <h3 class="text-sm uppercase tracking-[0.3em] text-white/50">Cores</h3>
-                    <p class="text-xs text-white/40 mt-1">As cores iniciais seguem a paleta do tema. Ajuste conforme necessario.</p>
-                    <div id="colorPickerContainer" class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4"></div>
-                </div>
-
-                <div class="flex flex-col sm:flex-row justify-end gap-3 pt-2">
-                    <button type="button" id="cancelChartBtn" class="{{ theme.buttons.secondary }} px-5 py-2.5 rounded-full text-sm uppercase tracking-wide">Cancelar</button>
-                    <button type="submit" id="submitChartBtn" class="{{ theme.buttons.primary }} px-5 py-2.5 rounded-full text-sm uppercase tracking-wide flex items-center justify-center gap-2">
-                        <span>Criar grafico</span>
-                        <span id="chartSubmitSpinner" class="hidden w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                    </button>
-                </div>
-                <p id="chartFormFeedback" class="text-sm text-center text-white/70"></p>
-            </form>
-        </div>
-    </div>
-
-    <div id="chartDeleteModal" class="fixed inset-0 hidden z-[85] items-center justify-center">
-        <div class="absolute inset-0 bg-slate-900/75 backdrop-blur-xl"></div>
-        <div class="relative glass-panel {{ theme.modal }} border border-white/10 rounded-3xl w-full max-w-sm mx-auto p-6 space-y-6 scale-in">
-            <div class="flex items-start gap-4">
-                <div class="{{ theme.danger_icon.container }} w-12 h-12 rounded-full flex items-center justify-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 {{ theme.danger_icon.icon }}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M12 3l8.66 15H3.34L12 3z" />
-                    </svg>
-                </div>
-                <div class="space-y-2">
-                    <h2 class="text-xl font-semibold tracking-tight">Excluir grafico</h2>
-                    <p class="text-sm text-white/60">Deseja realmente excluir <span id="deleteChartName" class="text-white/80 font-medium"></span>? Esta acao nao pode ser desfeita.</p>
-                </div>
-            </div>
-            <div class="flex justify-end gap-3">
-                <button id="cancelDeleteChartBtn" class="{{ theme.buttons.secondary }} px-4 py-2 rounded-full text-sm uppercase tracking-wide">Cancelar</button>
-                <button id="confirmDeleteChartBtn" class="{{ theme.buttons.danger }} px-4 py-2 rounded-full text-sm uppercase tracking-wide">Excluir</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="viewChartModal" class="fixed inset-0 hidden z-[100] px-4 md:px-8 items-center justify-center">
-        <div id="viewChartModalOverlay" class="absolute inset-0 bg-slate-950/80 backdrop-blur-2xl"></div>
-        <div class="relative w-full max-w-6xl h-[85vh] mx-auto glass-panel {{ theme.modal }} border border-white/10 rounded-3xl p-8 md:p-10 flex flex-col gap-6 scale-in">
-            <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                <div class="space-y-2">
-                    <p id="viewChartMeta" class="text-xs text-white/50 uppercase tracking-[0.35em]"></p>
-                    <h2 id="viewChartTitle" class="text-3xl font-semibold tracking-tight"></h2>
-                </div>
-                <div class="flex items-center gap-3 self-end md:self-start">
-                    <button id="nextViewChartBtn" class="{{ theme.buttons.secondary }} px-5 py-2.5 rounded-full text-sm uppercase tracking-wide transition-transform duration-300 hover:-translate-y-0.5">Próximo</button>
-                    <button id="closeViewChartBtn" class="w-10 h-10 rounded-full border border-white/10 hover:border-white/30 flex items-center justify-center transition-colors" title="Fechar">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
-            </div>
-            <div class="relative flex-1">
-                <div id="viewChartCanvas" class="absolute inset-0 rounded-3xl border border-white/10 bg-white/5 hidden"></div>
-                <div id="viewChartMessage" class="hidden absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-white/60"></div>
-            </div>
-        </div>
-    </div>
-
-    <div id="toastContainer" class="fixed bottom-6 right-6 z-[90] space-y-3"></div>
-
-    <script>
-        window.__CHARTS_DATA__ = {
-            workflowId: {{ workflow.id }},
-            themeName: '{{ theme.name }}',
-            themePalette: {{ theme.chart_palette | tojson }},
-            processedData: {{ processed_data | tojson | safe if processed_data else 'null' }},
-            charts: {{ charts | tojson | safe }},
-            endpoints: {
-                list: `{{ url_for('workflow.listar_graficos', workflow_id=workflow.id) }}`,
-                create: `{{ url_for('workflow.criar_grafico', workflow_id=workflow.id) }}`,
-                deleteTemplate: `{{ url_for('workflow.excluir_grafico', workflow_id=workflow.id, grafico_id=0) }}`
-            },
-            themeClasses: {
-                toastSuccess: '{{ theme.toast.success if theme.toast and theme.toast.success else "bg-emerald-600 text-white" }}',
-                toastError: '{{ theme.toast.error if theme.toast and theme.toast.error else "bg-rose-600 text-white" }}',
-                modalSurface: '{{ theme.modal }}',
-                buttons: {
-                    primary: '{{ theme.buttons.primary }}',
-                    secondary: '{{ theme.buttons.secondary }}',
-                    danger: '{{ theme.buttons.danger }}'
-                }
-            }
-        };
-    </script>
-    <script type="module" src="{{ url_for('static', filename='js/workflow_charts.js') }}"></script>
 </body>
 </html>
