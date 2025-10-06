@@ -231,6 +231,7 @@
     <script>
         const workflowId = {{ workflow.id }};
         const categories = {{ categories | tojson }};
+        const categoryStatus = {{ category_status | tojson }};
         const chartsViewUrl = "{{ url_for('analise_jp.analise_jp_charts_view', workflow_id=workflow.id) }}";
         let currentCategory = categories.length ? categories[0] : null;
         let uploadsCache = {};
@@ -276,6 +277,57 @@
                 .split('_')
                 .map(word => word ? word.charAt(0).toUpperCase() + word.slice(1) : '')
                 .join(' ');
+        }
+
+        function createCategoryCheckIcon() {
+            const wrapper = document.createElement('span');
+            wrapper.dataset.role = 'category-check';
+            wrapper.setAttribute('aria-hidden', 'true');
+            wrapper.className = 'hidden shrink-0 w-6 h-6 rounded-full border border-emerald-400/80 bg-emerald-500/10 text-emerald-300 flex items-center justify-center';
+
+            const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            icon.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+            icon.setAttribute('viewBox', '0 0 20 20');
+            icon.setAttribute('fill', 'currentColor');
+            icon.classList.add('w-4', 'h-4');
+
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.setAttribute('fill-rule', 'evenodd');
+            path.setAttribute('clip-rule', 'evenodd');
+            path.setAttribute('d', 'M16.704 5.29a1 1 0 0 1 .006 1.414l-7.25 7.333a1 1 0 0 1-1.437.011L3.29 9.313A1 1 0 1 1 4.71 7.89l3.6 3.565 6.534-6.602a1 1 0 0 1 1.414-.006Z');
+
+            icon.appendChild(path);
+            wrapper.appendChild(icon);
+            return wrapper;
+        }
+
+        function updateCategoryCompletion(category, hasUploads) {
+            if (!category) return;
+            const normalisedHasUploads = Boolean(hasUploads);
+            categoryStatus[category] = normalisedHasUploads;
+
+            const button = categoryList.querySelector(`button[data-category="${category}"]`);
+            if (!button) return;
+
+            button.dataset.hasUploads = normalisedHasUploads ? 'true' : 'false';
+
+            let checkIcon = button.querySelector('[data-role="category-check"]');
+            if (!checkIcon) {
+                const contentWrapper = button.querySelector('[data-role="category-content"]');
+                if (!contentWrapper) {
+                    return;
+                }
+                checkIcon = createCategoryCheckIcon();
+                contentWrapper.appendChild(checkIcon);
+            }
+
+            if (normalisedHasUploads) {
+                checkIcon.classList.remove('hidden');
+                checkIcon.setAttribute('aria-hidden', 'false');
+            } else {
+                checkIcon.classList.add('hidden');
+                checkIcon.setAttribute('aria-hidden', 'true');
+            }
         }
 
         function showToast(message, type = 'success') {
@@ -431,7 +483,10 @@
         function renderUploads(category, uploads) {
             uploadsList.innerHTML = '';
 
-            if (!uploads.length) {
+            const hasUploads = Array.isArray(uploads) && uploads.length > 0;
+            updateCategoryCompletion(category, hasUploads);
+
+            if (!hasUploads) {
                 uploadsEmptyState.classList.remove('hidden');
                 if (category === currentCategory) {
                     activeUploadId = null;
@@ -931,10 +986,29 @@
                 const button = document.createElement('button');
                 button.type = 'button';
                 button.dataset.category = category;
-                button.className = 'w-full text-left px-4 py-2.5 rounded-2xl border border-white/10 bg-white/5 hover:border-emerald-400 transition-colors duration-300';
-                button.textContent = slugToLabel(category);
+                button.className = 'w-full px-4 py-2.5 rounded-2xl border border-white/10 bg-white/5 hover:border-emerald-400 transition-colors duration-300 text-white/70 flex items-center justify-between gap-3';
+
+                const contentWrapper = document.createElement('div');
+                contentWrapper.className = 'flex items-center justify-between gap-3 w-full';
+                contentWrapper.dataset.role = 'category-content';
+
+                const labelSpan = document.createElement('span');
+                labelSpan.className = 'text-sm font-medium tracking-tight';
+                labelSpan.textContent = slugToLabel(category);
+
+                const checkIcon = createCategoryCheckIcon();
+                if (categoryStatus?.[category]) {
+                    checkIcon.classList.remove('hidden');
+                    checkIcon.setAttribute('aria-hidden', 'false');
+                }
+
+                contentWrapper.appendChild(labelSpan);
+                contentWrapper.appendChild(checkIcon);
+                button.appendChild(contentWrapper);
+
                 button.addEventListener('click', () => setActiveCategory(category));
                 categoryList.appendChild(button);
+                updateCategoryCompletion(category, categoryStatus?.[category]);
             });
         }
 
