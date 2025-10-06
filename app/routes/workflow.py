@@ -11,6 +11,7 @@ from flask import (
     url_for,
 )
 from flask_login import login_required, current_user
+from sqlalchemy.orm import defer
 
 from app import db
 from app.models.workflow import Workflow
@@ -39,6 +40,23 @@ def _serialize_arquivo_metadata(
 
     if include_counts:
         total_indicadores = 0
+        dados_extraidos = arquivo.dados_extraidos or {}
+
+        if isinstance(dados_extraidos, dict):
+            raw_total = dados_extraidos.get('total_indicadores')
+            if isinstance(raw_total, (int, float)):
+                total_indicadores = int(raw_total)
+            else:
+                indicadores = dados_extraidos.get('indicadores')
+                if isinstance(indicadores, list):
+                    total_indicadores = len(indicadores)
+
+        metadata['total_indicadores'] = total_indicadores
+
+    return metadata
+
+    if include_counts:
+        total_indicadores = 0
 
         dados_extraidos = arquivo.dados_extraidos or {}
 
@@ -64,13 +82,17 @@ def _get_workflow_for_user_by_name(workflow_nome):
     ).first_or_404()
 
 
-def _get_latest_file_for_workflow(workflow_id):
-    return (
+def _get_latest_file_for_workflow(workflow_id, include_payload: bool = True):
+    query = (
         ArquivoImportado.query
         .filter_by(workflow_id=workflow_id)
         .order_by(ArquivoImportado.data_upload.desc())
-        .first()
     )
+
+    if not include_payload:
+        query = query.options(defer(ArquivoImportado.dados_extraidos))
+
+    return query.first()
 
 
 def _get_processed_data_for_workflow(workflow_id):
@@ -119,7 +141,9 @@ def workflow_view(workflow_nome):
     if workflow.tipo == 'analise_jp':
         return redirect(url_for('analise_jp.analise_jp_view', workflow_id=workflow.id))
 
+    arquivo_atual = _get_latest_file_for_workflow(workflow.id, include_payload=False)
     arquivo_atual, processed_data = _get_processed_data_for_workflow(workflow.id)
+
     arquivo_atual_metadata = (
         _serialize_arquivo_metadata(arquivo_atual)
         if arquivo_atual
@@ -133,6 +157,7 @@ def workflow_view(workflow_nome):
         theme=theme,
         arquivo_atual=arquivo_atual,
         arquivo_atual_metadata=arquivo_atual_metadata,
+        processed_data=None,
         processed_data=processed_data
     )
 
@@ -316,8 +341,6 @@ def listar_arquivos(workflow_id):
     ])
 
     return jsonify([arquivo.to_dict() for arquivo in arquivos])
-
-
 
 
 

@@ -460,6 +460,14 @@
             }, 3600);
         }
 
+        function resetIndicatorSelect() {
+            const select = document.getElementById('indicatorSelect');
+            if (!select) {
+                return;
+            }
+            select.innerHTML = '<option value="">Selecione um indicador</option>';
+        }
+
         function renderTable(data) {
             const tableContainer = document.getElementById('tableContainer');
             const emptyState = document.getElementById('tableEmptyState');
@@ -476,6 +484,7 @@
                 tableSubtitle.textContent = 'Selecione um arquivo CSV ou XLSX para liberar a visualizacao.';
                 tbody.innerHTML = '';
                 updatePagination(0, 0, 0, 0);
+                resetIndicatorSelect();
                 return;
             }
 
@@ -573,6 +582,9 @@
                 currentPage = 1;
                 updateUploadInfo();
                 renderTable(currentData);
+                if (currentData && Array.isArray(currentData.indicadores) && currentData.indicadores.length > 0) {
+                    populateIndicatorSelect();
+                }
             } catch (error) {
                 console.error(error);
                 showToast('Nao foi possivel atualizar o comparativo.', 'error');
@@ -907,8 +919,20 @@
 
         function populateIndicatorSelect() {
             const select = document.getElementById('indicatorSelect');
-            select.innerHTML = '<option value="">Selecione um indicador</option>';
+            if (!select) {
+                return;
+            }
+
+            resetIndicatorSelect();
+
+            if (!currentData || !Array.isArray(currentData.indicadores)) {
+                return;
+            }
+
             currentData.indicadores.forEach((item, index) => {
+                if (!item || typeof item.indicador !== 'string') {
+                    return;
+                }
                 const option = document.createElement('option');
                 option.value = index;
                 option.textContent = item.indicador;
@@ -993,6 +1017,11 @@
                 currentPage = 1;
                 renderTable(currentData);
                 updateUploadInfo();
+
+                if (currentData && Array.isArray(currentData.indicadores) && currentData.indicadores.length > 0) {
+                    populateIndicatorSelect();
+                }
+
                 fetchHistorico();
                 closeUploadModal();
                 showToast(payload.message || 'Arquivo processado com sucesso.', 'success');
@@ -1145,6 +1174,7 @@
                 updateUploadInfo();
             }
 
+            fetchComparativo();
             fetchHistorico();
         }
 
