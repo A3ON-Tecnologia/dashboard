@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
@@ -351,7 +351,7 @@
         const historicoEndpoint = `/api/workflows/${workflowId}/arquivos`;
         const chartsViewUrl = "{{ url_for('workflow.workflow_charts_view', workflow_nome=workflow.nome) }}";
         const initialComparativo = {{ processed_data | tojson | safe if processed_data else 'null' }};
-        const initialArquivo = {{ arquivo_atual.to_dict() | tojson | safe if arquivo_atual else 'null' }};
+        const initialArquivo = {{ arquivo_atual_metadata | tojson | safe if arquivo_atual_metadata else 'null' }};
 
         let currentData = initialComparativo;
         let currentArquivo = initialArquivo;
@@ -460,6 +460,14 @@
             }, 3600);
         }
 
+        function resetIndicatorSelect() {
+            const select = document.getElementById('indicatorSelect');
+            if (!select) {
+                return;
+            }
+            select.innerHTML = '<option value="">Selecione um indicador</option>';
+        }
+
         function renderTable(data) {
             const tableContainer = document.getElementById('tableContainer');
             const emptyState = document.getElementById('tableEmptyState');
@@ -476,6 +484,7 @@
                 tableSubtitle.textContent = 'Selecione um arquivo CSV ou XLSX para liberar a visualizacao.';
                 tbody.innerHTML = '';
                 updatePagination(0, 0, 0, 0);
+                resetIndicatorSelect();
                 return;
             }
 
@@ -573,6 +582,9 @@
                 currentPage = 1;
                 updateUploadInfo();
                 renderTable(currentData);
+                if (currentData && Array.isArray(currentData.indicadores) && currentData.indicadores.length > 0) {
+                    populateIndicatorSelect();
+                }
             } catch (error) {
                 console.error(error);
                 showToast('Nao foi possivel atualizar o comparativo.', 'error');
@@ -658,9 +670,17 @@
                 nameEl.textContent = nomeArquivo;
                 nameEl.title = nomeArquivo;
 
-                const totalIndicadores = item && item.dados_extraidos && typeof item.dados_extraidos.total_indicadores === 'number'
-                    ? item.dados_extraidos.total_indicadores
-                    : 0;
+                let totalIndicadores = 0;
+                if (item) {
+                    if (typeof item.total_indicadores === 'number' && Number.isFinite(item.total_indicadores)) {
+                        totalIndicadores = item.total_indicadores;
+                    } else if (typeof item.total_indicadores === 'string') {
+                        const parsedTotal = Number.parseInt(item.total_indicadores, 10);
+                        if (!Number.isNaN(parsedTotal)) {
+                            totalIndicadores = parsedTotal;
+                        }
+                    }
+                }
                 const summaryEl = document.createElement('p');
                 summaryEl.className = 'text-xs text-white/50 mt-1';
                 summaryEl.textContent = `${totalIndicadores} indicador${totalIndicadores === 1 ? '' : 'es'} processado${totalIndicadores === 1 ? '' : 's'}`;
@@ -899,8 +919,20 @@
 
         function populateIndicatorSelect() {
             const select = document.getElementById('indicatorSelect');
-            select.innerHTML = '<option value="">Selecione um indicador</option>';
+            if (!select) {
+                return;
+            }
+
+            resetIndicatorSelect();
+
+            if (!currentData || !Array.isArray(currentData.indicadores)) {
+                return;
+            }
+
             currentData.indicadores.forEach((item, index) => {
+                if (!item || typeof item.indicador !== 'string') {
+                    return;
+                }
                 const option = document.createElement('option');
                 option.value = index;
                 option.textContent = item.indicador;
@@ -985,7 +1017,10 @@
                 currentPage = 1;
                 renderTable(currentData);
                 updateUploadInfo();
-                refreshData();
+                if (currentData && Array.isArray(currentData.indicadores) && currentData.indicadores.length > 0) {
+                    populateIndicatorSelect();
+                }
+                fetchHistorico();
                 closeUploadModal();
                 showToast(payload.message || 'Arquivo processado com sucesso.', 'success');
             } catch (error) {
@@ -1137,6 +1172,7 @@
                 updateUploadInfo();
             }
 
+            fetchComparativo();
             fetchHistorico();
         }
 

@@ -1,4 +1,5 @@
-﻿from pathlib import Path
+from pathlib import Path
+from typing import Any, Dict
 
 from flask import (
     Blueprint,
@@ -10,10 +11,10 @@ from flask import (
     url_for,
 )
 from flask_login import login_required, current_user
+from sqlalchemy.orm import defer
 
 from app import db
 from app.models.workflow import Workflow
-from app.models.dashboard import Dashboard
 from app.models.arquivo_importado import ArquivoImportado
 from app.services.theme_service import get_theme_context
 from app.services.workflow_import_service import (
@@ -25,16 +26,34 @@ workflow_bp = Blueprint('workflow', __name__)
 
 WORKFLOW_ALLOWED_TYPES = {'balancete', 'analise_jp'}
 
-ALLOWED_CHART_TYPES = {
-    'bar', 'line', 'pie', 'doughnut', 'radar', 'area', 'scatter', 'heatmap', 'gauge', 'table'
-}
 
-ALLOWED_METRICS = {
-    'valor_periodo_1',
-    'valor_periodo_2',
-    'diferenca_absoluta',
-    'diferenca_percentual'
-}
+def _serialize_arquivo_metadata(
+    arquivo: ArquivoImportado,
+    include_counts: bool = False,
+) -> Dict[str, Any]:
+    metadata: Dict[str, Any] = {
+        'id': arquivo.id,
+        'workflow_id': arquivo.workflow_id,
+        'nome_arquivo': arquivo.nome_arquivo,
+        'data_upload': arquivo.data_upload.isoformat() if arquivo.data_upload else None,
+    }
+
+    if include_counts:
+        total_indicadores = 0
+        dados_extraidos = arquivo.dados_extraidos or {}
+
+        if isinstance(dados_extraidos, dict):
+            raw_total = dados_extraidos.get('total_indicadores')
+            if isinstance(raw_total, (int, float)):
+                total_indicadores = int(raw_total)
+            else:
+                indicadores = dados_extraidos.get('indicadores')
+                if isinstance(indicadores, list):
+                    total_indicadores = len(indicadores)
+
+        metadata['total_indicadores'] = total_indicadores
+
+    return metadata
 
 
 def _get_workflow_for_user_by_name(workflow_nome):
@@ -44,13 +63,17 @@ def _get_workflow_for_user_by_name(workflow_nome):
     ).first_or_404()
 
 
-def _get_latest_file_for_workflow(workflow_id):
-    return (
+def _get_latest_file_for_workflow(workflow_id, include_payload: bool = True):
+    query = (
         ArquivoImportado.query
         .filter_by(workflow_id=workflow_id)
         .order_by(ArquivoImportado.data_upload.desc())
-        .first()
     )
+
+    if not include_payload:
+        query = query.options(defer(ArquivoImportado.dados_extraidos))
+
+    return query.first()
 
 
 def _get_processed_data_for_workflow(workflow_id):
@@ -81,13 +104,6 @@ def workflow_charts_view(workflow_nome):
     workflow = _get_workflow_for_user_by_name(workflow_nome)
     arquivo_atual, processed_data = _get_processed_data_for_workflow(workflow.id)
 
-    charts = (
-        Dashboard.query
-        .filter_by(workflow_id=workflow.id)
-        .order_by(Dashboard.created_at.desc())
-        .all()
-    )
-
     theme = get_theme_context()
     return render_template(
         'workflow_charts.html',
@@ -95,7 +111,6 @@ def workflow_charts_view(workflow_nome):
         theme=theme,
         arquivo_atual=arquivo_atual,
         processed_data=processed_data,
-        charts=[chart.to_dict() for chart in charts]
     )
 
 
@@ -107,7 +122,12 @@ def workflow_view(workflow_nome):
     if workflow.tipo == 'analise_jp':
         return redirect(url_for('analise_jp.analise_jp_view', workflow_id=workflow.id))
 
-    arquivo_atual, processed_data = _get_processed_data_for_workflow(workflow.id)
+    arquivo_atual = _get_latest_file_for_workflow(workflow.id, include_payload=False)
+    arquivo_atual_metadata = (
+        _serialize_arquivo_metadata(arquivo_atual)
+        if arquivo_atual
+        else None
+    )
 
     theme = get_theme_context()
     return render_template(
@@ -115,7 +135,8 @@ def workflow_view(workflow_nome):
         workflow=workflow,
         theme=theme,
         arquivo_atual=arquivo_atual,
-        processed_data=processed_data
+        arquivo_atual_metadata=arquivo_atual_metadata,
+        processed_data=None,
     )
 
 
@@ -272,7 +293,7 @@ def upload_arquivo(workflow_id):
 
     return jsonify({
         'message': 'Arquivo valido processado com sucesso.',
-        'arquivo': novo_arquivo.to_dict(),
+        'arquivo': _serialize_arquivo_metadata(novo_arquivo),
         'dados_processados': novo_arquivo.dados_extraidos
     }), 201
 
@@ -292,150 +313,12 @@ def listar_arquivos(workflow_id):
         .all()
     )
 
-    return jsonify([arquivo.to_dict() for arquivo in arquivos])
+    return jsonify([
+        _serialize_arquivo_metadata(arquivo, include_counts=True)
+        for arquivo in arquivos
+    ])
 
 
-@workflow_bp.route('/api/workflows/<int:workflow_id>/graficos', methods=['GET'])
-@login_required
-def listar_graficos(workflow_id):
-    workflow = Workflow.query.filter_by(
-        id=workflow_id,
-        usuario_id=current_user.id
-    ).first_or_404()
-
-    charts = (
-        Dashboard.query
-        .filter_by(workflow_id=workflow.id)
-        .order_by(Dashboard.created_at.desc())
-        .all()
-    )
-
-    return jsonify([chart.to_dict() for chart in charts])
-
-
-@workflow_bp.route('/api/workflows/<int:workflow_id>/graficos', methods=['POST'])
-@login_required
-def criar_grafico(workflow_id):
-    workflow = Workflow.query.filter_by(
-        id=workflow_id,
-        usuario_id=current_user.id
-    ).first_or_404()
-
-    dados_requisicao = request.get_json() or {}
-
-    chart_type = (dados_requisicao.get('chart_type') or '').lower()
-    metric = dados_requisicao.get('metric')
-    metrics = dados_requisicao.get('metrics') or []
-    indicators = dados_requisicao.get('indicators') or []
-    colors = dados_requisicao.get('colors') or []
-    nome = dados_requisicao.get('nome') or dados_requisicao.get('title')
-    options = dados_requisicao.get('options') or {}
-
-    if chart_type not in ALLOWED_CHART_TYPES:
-        return jsonify({'error': 'Tipo de grafico invalido.'}), 400
-
-    if isinstance(metrics, str):
-        metrics = [metrics]
-    metrics = [item.lower() for item in metrics if isinstance(item, str) and item.strip()]
-    if not metrics:
-        if metric:
-            metrics = [metric.lower()]
-        else:
-            return jsonify({'error': 'Selecione ao menos uma metrica.'}), 400
-
-    metric_set = []
-    for item in metrics:
-        if item not in ALLOWED_METRICS:
-            return jsonify({'error': 'Metrica invalida.'}), 400
-        if item not in metric_set:
-            metric_set.append(item)
-    metrics = metric_set
-    primary_metric = metrics[0]
-
-    if not indicators or not isinstance(indicators, list):
-        return jsonify({'error': 'Selecione ao menos um indicador.'}), 400
-
-    arquivo_atual, processed_data = _get_processed_data_for_workflow(workflow.id)
-    if not processed_data or not processed_data.get('indicadores'):
-        return jsonify({'error': 'Nao ha dados processados para gerar graficos.'}), 400
-
-    indicador_map = {item.get('indicador'): item for item in processed_data.get('indicadores', [])}
-    indicadores_invalidos = [indicador for indicador in indicators if indicador not in indicador_map]
-    if indicadores_invalidos:
-        return jsonify({'error': f"Indicadores invalidos: {', '.join(indicadores_invalidos)}"}), 400
-
-    expected_color_count = len(metrics) if len(metrics) > 1 else len(indicators)
-    colors = [color for color in colors if isinstance(color, str) and color.strip()]
-    if colors and len(colors) != expected_color_count:
-        return jsonify({'error': 'Quantidade de cores deve corresponder aos itens selecionados.'}), 400
-
-    theme = get_theme_context()
-    palette = theme.get('chart_palette', [])
-    if not colors:
-        generated = []
-        for idx in range(expected_color_count):
-            if palette:
-                generated.append(palette[idx % len(palette)])
-            else:
-                generated.append('#%06x' % (0x3366CC + idx * 3211))
-        colors = generated
-
-    colors = [color.upper() for color in colors]
-
-    if not nome:
-        nome = f"{chart_type.title()} - {primary_metric.replace('_', ' ').title()}"
-
-    if not isinstance(options, dict):
-        options = {}
-    options['metrics'] = metrics
-    options['color_mode'] = 'metric' if len(metrics) > 1 else 'indicator'
-
-    novo_grafico = Dashboard(
-        workflow_id=workflow.id,
-        nome=nome,
-        chart_type=chart_type,
-        metric=primary_metric,
-        indicators=indicators,
-        colors=colors,
-        options=options
-    )
-
-    try:
-        db.session.add(novo_grafico)
-        db.session.commit()
-    except Exception as err:
-        current_app.logger.exception('Falha ao criar grafico', exc_info=err)
-        db.session.rollback()
-        return jsonify({'error': 'Erro ao salvar grafico.'}), 500
-
-    return jsonify({
-        'message': 'Grafico criado com sucesso.',
-        'grafico': novo_grafico.to_dict()
-    }), 201
-
-
-@workflow_bp.route('/api/workflows/<int:workflow_id>/graficos/<int:grafico_id>', methods=['DELETE'])
-@login_required
-def excluir_grafico(workflow_id, grafico_id):
-    workflow = Workflow.query.filter_by(
-        id=workflow_id,
-        usuario_id=current_user.id
-    ).first_or_404()
-
-    grafico = Dashboard.query.filter_by(
-        id=grafico_id,
-        workflow_id=workflow.id
-    ).first_or_404()
-
-    try:
-        db.session.delete(grafico)
-        db.session.commit()
-    except Exception as err:
-        current_app.logger.exception('Falha ao excluir grafico', exc_info=err)
-        db.session.rollback()
-        return jsonify({'error': 'Erro ao excluir grafico.'}), 500
-
-    return jsonify({'message': 'Grafico excluido com sucesso.'})
 
 
 @workflow_bp.route('/api/workflows/<int:workflow_id>/arquivos/<int:arquivo_id>', methods=['DELETE'])
@@ -489,5 +372,5 @@ def obter_dados_comparativo(workflow_id):
 
     return jsonify({
         'dados': arquivo.dados_extraidos,
-        'arquivo': arquivo.to_dict()
+        'arquivo': _serialize_arquivo_metadata(arquivo)
     })
