@@ -1,4 +1,5 @@
-﻿from pathlib import Path
+from pathlib import Path
+from typing import Any, Dict
 
 from flask import (
     Blueprint,
@@ -25,6 +26,34 @@ workflow_bp = Blueprint('workflow', __name__)
 WORKFLOW_ALLOWED_TYPES = {'balancete', 'analise_jp'}
 
 
+def _serialize_arquivo_metadata(
+    arquivo: ArquivoImportado,
+    include_counts: bool = False,
+) -> Dict[str, Any]:
+    metadata: Dict[str, Any] = {
+        'id': arquivo.id,
+        'workflow_id': arquivo.workflow_id,
+        'nome_arquivo': arquivo.nome_arquivo,
+        'data_upload': arquivo.data_upload.isoformat() if arquivo.data_upload else None,
+    }
+
+    if include_counts:
+        total_indicadores = 0
+        dados_extraidos = arquivo.dados_extraidos
+
+        if isinstance(dados_extraidos, dict):
+            raw_total = dados_extraidos.get('total_indicadores')
+            if isinstance(raw_total, (int, float)):
+                total_indicadores = int(raw_total)
+            else:
+                indicadores = dados_extraidos.get('indicadores')
+                if isinstance(indicadores, list):
+                    total_indicadores = len(indicadores)
+
+        metadata['total_indicadores'] = total_indicadores
+
+    return metadata
+  
 def _get_workflow_for_user_by_name(workflow_nome):
     return Workflow.query.filter_by(
         nome=workflow_nome,
@@ -88,6 +117,11 @@ def workflow_view(workflow_nome):
         return redirect(url_for('analise_jp.analise_jp_view', workflow_id=workflow.id))
 
     arquivo_atual, processed_data = _get_processed_data_for_workflow(workflow.id)
+    arquivo_atual_metadata = (
+        _serialize_arquivo_metadata(arquivo_atual)
+        if arquivo_atual
+        else None
+    )
 
     theme = get_theme_context()
     return render_template(
@@ -95,6 +129,7 @@ def workflow_view(workflow_nome):
         workflow=workflow,
         theme=theme,
         arquivo_atual=arquivo_atual,
+        arquivo_atual_metadata=arquivo_atual_metadata,
         processed_data=processed_data
     )
 
@@ -252,7 +287,7 @@ def upload_arquivo(workflow_id):
 
     return jsonify({
         'message': 'Arquivo valido processado com sucesso.',
-        'arquivo': novo_arquivo.to_dict(),
+        'arquivo': _serialize_arquivo_metadata(novo_arquivo),
         'dados_processados': novo_arquivo.dados_extraidos
     }), 201
 
@@ -272,7 +307,12 @@ def listar_arquivos(workflow_id):
         .all()
     )
 
+    return jsonify([
+        _serialize_arquivo_metadata(arquivo, include_counts=True)
+        for arquivo in arquivos
+    ])
     return jsonify([arquivo.to_dict() for arquivo in arquivos])
+
 
 
 
@@ -328,5 +368,5 @@ def obter_dados_comparativo(workflow_id):
 
     return jsonify({
         'dados': arquivo.dados_extraidos,
-        'arquivo': arquivo.to_dict()
+        'arquivo': _serialize_arquivo_metadata(arquivo)
     })

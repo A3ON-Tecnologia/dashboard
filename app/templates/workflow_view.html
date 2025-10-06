@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
@@ -351,7 +351,7 @@
         const historicoEndpoint = `/api/workflows/${workflowId}/arquivos`;
         const chartsViewUrl = "{{ url_for('workflow.workflow_charts_view', workflow_nome=workflow.nome) }}";
         const initialComparativo = {{ processed_data | tojson | safe if processed_data else 'null' }};
-        const initialArquivo = {{ arquivo_atual.to_dict() | tojson | safe if arquivo_atual else 'null' }};
+        const initialArquivo = {{ arquivo_atual_metadata | tojson | safe if arquivo_atual_metadata else 'null' }};
 
         let currentData = initialComparativo;
         let currentArquivo = initialArquivo;
@@ -658,9 +658,17 @@
                 nameEl.textContent = nomeArquivo;
                 nameEl.title = nomeArquivo;
 
-                const totalIndicadores = item && item.dados_extraidos && typeof item.dados_extraidos.total_indicadores === 'number'
-                    ? item.dados_extraidos.total_indicadores
-                    : 0;
+                let totalIndicadores = 0;
+                if (item) {
+                    if (typeof item.total_indicadores === 'number' && Number.isFinite(item.total_indicadores)) {
+                        totalIndicadores = item.total_indicadores;
+                    } else if (typeof item.total_indicadores === 'string') {
+                        const parsedTotal = Number.parseInt(item.total_indicadores, 10);
+                        if (!Number.isNaN(parsedTotal)) {
+                            totalIndicadores = parsedTotal;
+                        }
+                    }
+                }
                 const summaryEl = document.createElement('p');
                 summaryEl.className = 'text-xs text-white/50 mt-1';
                 summaryEl.textContent = `${totalIndicadores} indicador${totalIndicadores === 1 ? '' : 'es'} processado${totalIndicadores === 1 ? '' : 's'}`;
@@ -985,7 +993,7 @@
                 currentPage = 1;
                 renderTable(currentData);
                 updateUploadInfo();
-                refreshData();
+                fetchHistorico();
                 closeUploadModal();
                 showToast(payload.message || 'Arquivo processado com sucesso.', 'success');
             } catch (error) {
