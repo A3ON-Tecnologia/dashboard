@@ -142,7 +142,6 @@ def workflow_view(workflow_nome):
         return redirect(url_for('analise_jp.analise_jp_view', workflow_id=workflow.id))
 
     arquivo_atual = _get_latest_file_for_workflow(workflow.id, include_payload=False)
-    arquivo_atual, processed_data = _get_processed_data_for_workflow(workflow.id)
 
     arquivo_atual_metadata = (
         _serialize_arquivo_metadata(arquivo_atual)
