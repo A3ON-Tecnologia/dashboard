@@ -13,13 +13,12 @@
             theme: {
                 extend: {
                     fontFamily: {
-                        sans: ['Space Grotesk', 'Segoe UI', '-apple-system', 'system-ui', 'sans-serif']
+                        sans: ['Space Grotesk', 'Segoe UI', '-apple-system', 'system-ui', 'sans-serif'],
                     }
                 }
             }
-        }
+        };
     </script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <style>
         :root {
             --glass-border: rgba(255, 255, 255, 0.08);
@@ -31,18 +30,18 @@
             -webkit-backdrop-filter: blur(24px);
         }
 
-        .scale-in {
-            animation: scaleIn 0.35s ease forwards;
+        .fade-in {
+            animation: fadeIn 0.4s ease forwards;
         }
 
-        @keyframes scaleIn {
+        @keyframes fadeIn {
             0% {
                 opacity: 0;
-                transform: scale(0.94);
+                transform: translateY(8px);
             }
             100% {
                 opacity: 1;
-                transform: scale(1);
+                transform: translateY(0);
             }
         }
     </style>
@@ -53,7 +52,7 @@
 
         <main class="flex-1 h-full overflow-y-auto">
             <div class="max-w-7xl mx-auto px-6 md:px-10 py-10 space-y-8">
-                <header class="glass-panel {{ theme.modal }} border border-white/5 rounded-3xl p-8 shadow-2xl shadow-emerald-500/10">
+                <header class="glass-panel {{ theme.modal }} border border-white/5 rounded-3xl p-8 shadow-2xl shadow-emerald-500/10 fade-in">
                     <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
                         <div class="space-y-4">
                             <div class="flex items-center gap-4">
@@ -71,10 +70,10 @@
                                 </span>
                             </div>
                             <p class="text-white/70 max-w-3xl leading-relaxed">
-                                Transforme os uploads das categorias da Análise JP em visualizações interativas.
+                                A funcionalidade de gráficos da Análise JP foi desativada. Mantenha seus uploads organizados e utilize os dados diretamente nas tabelas do workflow.
                             </p>
                             <p class="text-xs text-white/40 uppercase tracking-widest">
-                                Atualizado em {{ workflow.data_criacao.strftime('%d/%m/%Y %H:%M') }}
+                                Criado em {{ workflow.data_criacao.strftime('%d/%m/%Y %H:%M') }}
                             </p>
                         </div>
 
@@ -89,182 +88,55 @@
                     </div>
                 </header>
 
-                <section class="space-y-6">
-                    <div class="glass-panel {{ theme.modal }} border border-white/5 rounded-3xl p-6 md:p-7 shadow-xl shadow-emerald-500/10">
-                        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
-                            <div class="space-y-2">
-                                <h2 class="text-2xl font-semibold tracking-tight">Galeria de gráficos</h2>
-                                <p id="chartsSubtitle" class="text-sm text-white/60">
-                                    {% if charts %}
-                                        Explore as visualizações salvas para este workflow.
-                                    {% else %}
-                                        Crie seu primeiro gráfico para compartilhar insights das categorias da Análise JP.
-                                    {% endif %}
-                                </p>
-                            </div>
-                        </div>
+                <section class="glass-panel {{ theme.modal }} border border-white/5 rounded-3xl p-8 md:p-10 shadow-xl shadow-emerald-500/10 space-y-6 fade-in">
+                    <div class="space-y-2">
+                        <h2 class="text-2xl font-semibold tracking-tight">Galeria de gráficos</h2>
+                        <p class="text-sm text-white/60">A criação de gráficos personalizados não está mais disponível, mas as categorias abaixo continuam recebendo uploads normalmente.</p>
+                    </div>
 
-                        <div id="chartsEmptyState" class="{% if charts %}hidden{% endif %} border border-dashed border-white/10 rounded-2xl p-10 text-center space-y-4">
+                    <div class="border border-dashed border-white/10 rounded-2xl p-8 space-y-6">
+                        <div class="text-center space-y-3">
                             <div class="w-12 h-12 mx-auto rounded-full border border-white/15 flex items-center justify-center text-white/50">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m6-6H6" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
                                 </svg>
                             </div>
-                            <h3 class="text-lg font-semibold">Nenhum gráfico criado ainda</h3>
-                            <p class="text-sm text-white/60 max-w-xl mx-auto">Utilize o botão "Criar gráfico" para escolher uma categoria, selecionar os campos e montar visualizações personalizadas.</p>
-                            <button id="emptyStateCreateBtn" class="{{ theme.buttons.primary }} px-5 py-2.5 rounded-full text-sm uppercase tracking-wide">Criar gráfico agora</button>
+                            <h3 class="text-lg font-semibold text-white/80">Visualizações descontinuadas</h3>
+                            <p class="text-sm text-white/60 max-w-2xl mx-auto">
+                                Use os botões do workflow principal para importar arquivos, revisar registros e ocultar linhas quando necessário. Todas as demais rotinas permanecem inalteradas.
+                            </p>
                         </div>
 
-                        <div id="chartsGrid" class="grid grid-cols-1 gap-6"></div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                            {% for categoria in categories_meta %}
+                                <div class="glass-panel border border-white/10 rounded-2xl p-5 space-y-3">
+                                    <div class="flex items-center justify-between">
+                                        <h4 class="text-base font-semibold text-white/80">{{ categoria.label }}</h4>
+                                        {% if categoria.has_data %}
+                                            <span class="px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide bg-emerald-500/20 text-emerald-200">Dados ativos</span>
+                                        {% else %}
+                                            <span class="px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide bg-white/10 text-white/60">Sem dados</span>
+                                        {% endif %}
+                                    </div>
+                                    {% if categoria.latest_upload %}
+                                        {% set created_at = categoria.latest_upload.created_at %}
+                                        {% if created_at %}
+                                            {% set data_parts = created_at.split('T')[0].split('-') %}
+                                            <p class="text-xs text-white/50">Último upload em {{ data_parts[2] }}/{{ data_parts[1] }}/{{ data_parts[0] }}</p>
+                                        {% else %}
+                                            <p class="text-xs text-white/50">Último upload registrado.</p>
+                                        {% endif %}
+                                        <p class="text-sm text-white/70 truncate" title="{{ categoria.latest_upload.nome_arquivo }}">{{ categoria.latest_upload.nome_arquivo }}</p>
+                                    {% else %}
+                                        <p class="text-sm text-white/60">Ainda não há uploads para esta categoria.</p>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                        </div>
                     </div>
                 </section>
             </div>
         </main>
     </div>
-
-    <div id="toastContainer" class="fixed bottom-6 right-6 z-[80] space-y-3"></div>
-
-    <div id="chartModal" class="fixed inset-0 hidden z-[90] items-center justify-center">
-        <div id="chartModalOverlay" class="absolute inset-0 bg-slate-950/70 backdrop-blur-xl"></div>
-        <div class="relative w-full max-w-2xl mx-auto glass-panel {{ theme.modal }} border border-white/10 rounded-3xl p-8 space-y-6 scale-in">
-            <div class="flex items-start justify-between gap-4">
-                <div>
-                    <h2 class="text-2xl font-semibold tracking-tight">Configurar gráfico</h2>
-                    <p class="text-sm text-white/60 mt-2">Selecione a categoria, os campos que deseja visualizar e o tipo de gráfico.</p>
-                </div>
-                <button id="closeChartModalBtn" class="w-10 h-10 rounded-full border border-white/10 hover:border-white/30 flex items-center justify-center transition-colors" title="Fechar">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
-            </div>
-
-            <form id="chartForm" class="space-y-6">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div class="flex flex-col gap-2">
-                        <label for="chartTitle" class="text-xs uppercase tracking-widest text-white/50">Título do gráfico (opcional)</label>
-                        <input id="chartTitle" type="text" class="rounded-2xl px-4 py-3 bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-emerald-500/60" placeholder="Ex: Evolução da categoria">
-                    </div>
-                    <div class="flex flex-col gap-2">
-                        <label for="chartType" class="text-xs uppercase tracking-widest text-white/50">Tipo de gráfico</label>
-                        <select id="chartType" class="rounded-2xl px-4 py-3 bg-white/5 border border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/60"></select>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div class="flex flex-col gap-2">
-                        <label for="chartCategory" class="text-xs uppercase tracking-widest text-white/50">Categoria</label>
-                        <select id="chartCategory" class="rounded-2xl px-4 py-3 bg-white/5 border border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/60"></select>
-                        <p id="categoryHint" class="text-xs text-white/40"></p>
-                    </div>
-                    <div class="flex flex-col gap-2">
-                        <label for="dimensionField" class="text-xs uppercase tracking-widest text-white/50">Campo para o eixo</label>
-                        <select id="dimensionField" class="rounded-2xl px-4 py-3 bg-white/5 border border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/60" disabled>
-                            <option value="">Selecione uma categoria</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="space-y-3">
-                    <div class="flex items-center justify-between">
-                        <span class="text-xs uppercase tracking-widest text-white/50">Campos de valores</span>
-                        <button type="button" id="toggleSelectAllValues" class="text-xs uppercase tracking-widest text-emerald-300 hover:text-emerald-200 hidden">Selecionar todos</button>
-                    </div>
-                    <div id="fieldLoadingState" class="hidden text-sm text-white/60">Carregando campos disponíveis...</div>
-                    <div id="valueFieldEmpty" class="hidden text-sm text-white/60">Nenhum campo disponível para a categoria escolhida.</div>
-                    <div id="valueFieldOptions" class="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1"></div>
-                </div>
-
-                <p id="chartFormFeedback" class="hidden text-sm text-rose-300 bg-rose-500/10 border border-rose-500/30 rounded-2xl px-4 py-3"></p>
-
-                <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
-                    <button type="button" id="cancelChartBtn" class="w-full sm:w-auto {{ theme.buttons.secondary }} px-5 py-2.5 rounded-full text-sm uppercase tracking-wide">Cancelar</button>
-                    <button type="submit" id="submitChartBtn" class="w-full sm:w-auto {{ theme.buttons.primary }} px-5 py-2.5 rounded-full text-sm uppercase tracking-wide flex items-center justify-center gap-2">
-                        <span>Criar gráfico</span>
-                        <span id="submitChartSpinner" class="hidden w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <div id="viewChartModal" class="fixed inset-0 hidden z-[100] px-4 flex items-center justify-center">
-        <div id="viewChartModalOverlay" class="absolute inset-0 bg-slate-950/80 backdrop-blur-2xl"></div>
-        <div class="relative w-full max-w-6xl h-[85vh] mx-auto glass-panel {{ theme.modal }} border border-white/10 rounded-3xl p-8 md:p-10 flex flex-col gap-6 scale-in">
-            <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                <div class="space-y-2">
-                    <p id="viewChartMeta" class="text-xs text-white/50 uppercase tracking-[0.35em]"></p>
-                    <h2 id="viewChartTitle" class="text-3xl font-semibold tracking-tight"></h2>
-                </div>
-                <div class="flex items-center gap-3 self-end md:self-start">
-                    <button id="nextViewChartBtn" class="{{ theme.buttons.secondary }} px-5 py-2.5 rounded-full text-sm uppercase tracking-wide transition-transform duration-300 hover:-translate-y-0.5">Próximo</button>
-                    <button id="closeViewChartBtn" class="w-10 h-10 rounded-full border border-white/10 hover:border-white/30 flex items-center justify-center transition-colors" title="Fechar visualização">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
-            </div>
-            <div class="relative flex-1 rounded-3xl border border-white/10 bg-white/5 overflow-hidden">
-                <canvas id="viewChartCanvas" class="w-full h-full"></canvas>
-                <div id="viewChartMessage" class="hidden absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-white/60"></div>
-            </div>
-        </div>
-    </div>
-
-    <div id="deleteModal" class="fixed inset-0 hidden z-[95] items-center justify-center">
-        <div id="deleteModalOverlay" class="absolute inset-0 bg-slate-950/70 backdrop-blur-xl"></div>
-        <div class="relative w-full max-w-md mx-auto glass-panel {{ theme.modal }} border border-white/10 rounded-3xl p-7 space-y-5 scale-in">
-            <div class="flex items-start gap-4">
-                <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-500/10 text-rose-400">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M4.5 19.5l7.5-15 7.5 15h-15z" />
-                    </svg>
-                </div>
-                <div class="flex-1 space-y-2">
-                    <h3 class="text-xl font-semibold tracking-tight">Excluir gráfico</h3>
-                    <p id="deleteModalMessage" class="text-sm text-white/60">Tem certeza que deseja remover este gráfico?</p>
-                </div>
-                <button id="closeDeleteModalBtn" class="w-10 h-10 rounded-full border border-white/10 hover:border-white/30 flex items-center justify-center transition-colors" title="Fechar">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
-            </div>
-            <div class="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/60">
-                A exclusão remove apenas o gráfico salvo. Os uploads e dados originais permanecerão disponíveis.
-            </div>
-            <div class="flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
-                <button id="cancelDeleteBtn" class="w-full sm:w-auto {{ theme.buttons.secondary }} px-5 py-2.5 rounded-full text-sm uppercase tracking-wide">Cancelar</button>
-                <button id="confirmDeleteBtn" class="w-full sm:w-auto px-5 py-2.5 rounded-full text-sm uppercase tracking-wide bg-rose-500/90 hover:bg-rose-500 text-white flex items-center justify-center gap-2">
-                    <span>Excluir gráfico</span>
-                    <span id="deleteSpinner" class="hidden w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        window.__ANALISE_JP__ = {
-            workflowId: {{ workflow.id }},
-            workflowName: {{ workflow.nome | tojson }},
-            charts: {{ charts | tojson | safe }},
-            categories: {{ categories_meta | tojson | safe }},
-            allowedChartTypes: {{ allowed_chart_types | tojson | safe }},
-            themePalette: {{ theme.chart_palette | tojson | safe }},
-            endpoints: {
-                list: "{{ url_for('analise_jp.listar_graficos_analise_jp', workflow_id=workflow.id) }}",
-                create: "{{ url_for('analise_jp.criar_grafico_analise_jp', workflow_id=workflow.id) }}",
-                delete: "{{ url_for('analise_jp.excluir_grafico_analise_jp', workflow_id=workflow.id, grafico_id=0) }}",
-                dataset: "{{ url_for('analise_jp.obter_dataset_categoria', workflow_id=workflow.id, categoria='__categoria__') }}"
-            },
-            themeClasses: {
-                toastSuccess: '{{ theme.toast.success }}',
-                toastError: '{{ theme.toast.error }}',
-                modal: '{{ theme.modal }}'
-            }
-        };
-    </script>
-    <script type="module" src="{{ url_for('static', filename='js/analise_jp_charts.js') }}"></script>
 </body>
 </html>
