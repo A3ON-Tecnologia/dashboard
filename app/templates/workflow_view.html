@@ -1017,9 +1017,11 @@
                 currentPage = 1;
                 renderTable(currentData);
                 updateUploadInfo();
+
                 if (currentData && Array.isArray(currentData.indicadores) && currentData.indicadores.length > 0) {
                     populateIndicatorSelect();
                 }
+
                 fetchHistorico();
                 closeUploadModal();
                 showToast(payload.message || 'Arquivo processado com sucesso.', 'success');

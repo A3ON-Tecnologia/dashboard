@@ -55,7 +55,26 @@ def _serialize_arquivo_metadata(
 
     return metadata
 
+    if include_counts:
+        total_indicadores = 0
 
+        dados_extraidos = arquivo.dados_extraidos or {}
+
+        dados_extraidos = arquivo.dados_extraidos
+
+        if isinstance(dados_extraidos, dict):
+            raw_total = dados_extraidos.get('total_indicadores')
+            if isinstance(raw_total, (int, float)):
+                total_indicadores = int(raw_total)
+            else:
+                indicadores = dados_extraidos.get('indicadores')
+                if isinstance(indicadores, list):
+                    total_indicadores = len(indicadores)
+
+        metadata['total_indicadores'] = total_indicadores
+
+    return metadata
+  
 def _get_workflow_for_user_by_name(workflow_nome):
     return Workflow.query.filter_by(
         nome=workflow_nome,
@@ -123,6 +142,8 @@ def workflow_view(workflow_nome):
         return redirect(url_for('analise_jp.analise_jp_view', workflow_id=workflow.id))
 
     arquivo_atual = _get_latest_file_for_workflow(workflow.id, include_payload=False)
+    arquivo_atual, processed_data = _get_processed_data_for_workflow(workflow.id)
+
     arquivo_atual_metadata = (
         _serialize_arquivo_metadata(arquivo_atual)
         if arquivo_atual
@@ -137,6 +158,7 @@ def workflow_view(workflow_nome):
         arquivo_atual=arquivo_atual,
         arquivo_atual_metadata=arquivo_atual_metadata,
         processed_data=None,
+        processed_data=processed_data
     )
 
 
@@ -318,6 +340,7 @@ def listar_arquivos(workflow_id):
         for arquivo in arquivos
     ])
 
+    return jsonify([arquivo.to_dict() for arquivo in arquivos])
 
 
 
