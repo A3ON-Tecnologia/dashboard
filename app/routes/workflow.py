@@ -158,7 +158,6 @@ def workflow_view(workflow_nome):
         arquivo_atual=arquivo_atual,
         arquivo_atual_metadata=arquivo_atual_metadata,
         processed_data=None,
-        processed_data=processed_data
     )
 
 
