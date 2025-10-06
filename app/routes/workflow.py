@@ -39,7 +39,10 @@ def _serialize_arquivo_metadata(
 
     if include_counts:
         total_indicadores = 0
+
         dados_extraidos = arquivo.dados_extraidos or {}
+
+        dados_extraidos = arquivo.dados_extraidos
 
         if isinstance(dados_extraidos, dict):
             raw_total = dados_extraidos.get('total_indicadores')
@@ -54,7 +57,10 @@ def _serialize_arquivo_metadata(
 
     return metadata
 
+        metadata['total_indicadores'] = total_indicadores
 
+    return metadata
+  
 def _get_workflow_for_user_by_name(workflow_nome):
     return Workflow.query.filter_by(
         nome=workflow_nome,
@@ -312,6 +318,9 @@ def listar_arquivos(workflow_id):
         _serialize_arquivo_metadata(arquivo, include_counts=True)
         for arquivo in arquivos
     ])
+
+    return jsonify([arquivo.to_dict() for arquivo in arquivos])
+
 
 
 
