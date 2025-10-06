@@ -9,6 +9,8 @@ from flask_login import current_user, login_required
 from werkzeug.datastructures import FileStorage
 from werkzeug.utils import secure_filename
 
+from sqlalchemy import distinct
+
 from app import db
 from app.models.analise_upload import AnaliseUpload
 from app.models.workflow import Workflow
@@ -194,11 +196,24 @@ def analise_jp_view(workflow_id: int):
         return redirect(url_for('workflow.workflow_view', workflow_nome=workflow.nome))
 
     theme = get_theme_context()
+    existing_categories = {
+        row[0]
+        for row in (
+            db.session.query(distinct(AnaliseUpload.categoria))
+            .filter_by(workflow_id=workflow.id)
+            .all()
+        )
+    }
+    category_status = {
+        categoria: categoria in existing_categories
+        for categoria in ANALISE_JP_CATEGORIES
+    }
     return render_template(
         'analise_jp.html',
         workflow=workflow,
         theme=theme,
-        categories=ANALISE_JP_CATEGORIES
+        categories=ANALISE_JP_CATEGORIES,
+        category_status=category_status,
     )
 
 
