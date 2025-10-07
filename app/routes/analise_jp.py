@@ -239,6 +239,7 @@ def _extract_payload(file: FileStorage) -> Tuple[List[dict], bytes]:
 def analise_jp_view(workflow_id: int):
     workflow = _get_workflow_or_404(workflow_id)
     return redirect(url_for('workflow.workflow_view', workflow_nome=workflow.nome), code=302)
+
     if workflow.tipo != 'analise_jp':
         return redirect(url_for('workflow.workflow_view', workflow_nome=workflow.nome))
 
@@ -250,6 +251,8 @@ def analise_jp_view(workflow_id: int):
 @login_required
 def analise_jp_charts_view(workflow_id: int):
     workflow = _get_workflow_or_404(workflow_id)
+
+    return redirect(url_for('workflow.workflow_charts_view', workflow_nome=workflow.nome), code=302)
     
     return redirect(url_for('workflow.workflow_charts_view', workflow_nome=workflow.nome), code=302)
   
@@ -258,6 +261,7 @@ def analise_jp_charts_view(workflow_id: int):
 
     context = build_analise_jp_charts_context(workflow)
     return render_template('analise_jp_charts.html', **context)
+
 
 
 

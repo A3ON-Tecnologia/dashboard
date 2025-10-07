@@ -272,6 +272,47 @@
         const deleteModalConfirm = document.getElementById('deleteModalConfirm');
         const deleteModalConfirmText = document.getElementById('deleteModalConfirmText');
 
+        function normaliseColumnName(column) {
+            if (column === null || column === undefined) {
+                return '';
+            }
+
+            try {
+                return String(column)
+                    .normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '')
+                    .toLowerCase();
+            } catch (error) {
+                return String(column).toLowerCase();
+            }
+        }
+
+        function reorderColumns(columns) {
+            if (!Array.isArray(columns) || columns.length === 0) {
+                return [];
+            }
+
+            const entries = columns.map((column, index) => ({
+                column,
+                index,
+                normalised: normaliseColumnName(column)
+            }));
+
+            const descriptionEntry = entries.find(entry => entry.normalised.includes('descricao'));
+            if (!descriptionEntry) {
+                return [...columns];
+            }
+
+            const ordered = [descriptionEntry.column];
+            entries.forEach(entry => {
+                if (entry.index !== descriptionEntry.index) {
+                    ordered.push(entry.column);
+                }
+            });
+
+            return ordered;
+        }
+
         function slugToLabel(slug) {
             return slug
                 .split('_')
@@ -412,7 +453,9 @@
                 return;
             }
 
-            const columns = Object.keys(records[0]).filter(column => !column.startsWith('__'));
+            const columns = reorderColumns(
+                Object.keys(records[0]).filter(column => !column.startsWith('__'))
+            );
             tableHead.innerHTML = '';
             tableBody.innerHTML = '';
 
@@ -656,7 +699,9 @@
                 hiddenRowsDescription.classList.add('text-amber-200');
             }
 
-            const previewFields = Object.keys(hiddenRecords[0]).filter(key => !key.startsWith('__'));
+            const previewFields = reorderColumns(
+                Object.keys(hiddenRecords[0]).filter(key => !key.startsWith('__'))
+            );
 
             hiddenRecords.forEach(record => {
                 const item = document.createElement('div');
