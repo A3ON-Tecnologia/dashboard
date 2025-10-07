@@ -21,6 +21,9 @@ from app.services.workflow_import_service import (
     ImportacaoArquivoErro,
     process_workflow_upload,
 )
+from app.routes.analise_jp import (
+    build_analise_jp_dashboard_context,
+)
 
 workflow_bp = Blueprint('workflow', __name__)
 
@@ -41,26 +44,6 @@ def _serialize_arquivo_metadata(
     if include_counts:
         total_indicadores = 0
         dados_extraidos = arquivo.dados_extraidos or {}
-
-        if isinstance(dados_extraidos, dict):
-            raw_total = dados_extraidos.get('total_indicadores')
-            if isinstance(raw_total, (int, float)):
-                total_indicadores = int(raw_total)
-            else:
-                indicadores = dados_extraidos.get('indicadores')
-                if isinstance(indicadores, list):
-                    total_indicadores = len(indicadores)
-
-        metadata['total_indicadores'] = total_indicadores
-
-    return metadata
-
-    if include_counts:
-        total_indicadores = 0
-
-        dados_extraidos = arquivo.dados_extraidos or {}
-
-        dados_extraidos = arquivo.dados_extraidos
 
         if isinstance(dados_extraidos, dict):
             raw_total = dados_extraidos.get('total_indicadores')
@@ -95,13 +78,6 @@ def _get_latest_file_for_workflow(workflow_id, include_payload: bool = True):
     return query.first()
 
 
-def _get_processed_data_for_workflow(workflow_id):
-    arquivo = _get_latest_file_for_workflow(workflow_id)
-    return arquivo, arquivo.dados_extraidos if arquivo else None
-
-
-
-
 @workflow_bp.route('/dashboard')
 @login_required
 def dashboard():
@@ -121,17 +97,7 @@ def dashboard():
 @login_required
 def workflow_charts_view(workflow_nome):
     workflow = _get_workflow_for_user_by_name(workflow_nome)
-    arquivo_atual, processed_data = _get_processed_data_for_workflow(workflow.id)
-
-    theme = get_theme_context()
-    return render_template(
-        'workflow_charts.html',
-        workflow=workflow,
-        theme=theme,
-        arquivo_atual=arquivo_atual,
-        processed_data=processed_data,
-    )
-
+    return redirect(url_for('workflow.workflow_view', workflow_nome=workflow.nome), code=302)
 
 @workflow_bp.route('/dashboard/<workflow_nome>')
 @login_required
@@ -139,10 +105,10 @@ def workflow_view(workflow_nome):
     """Exibe a pagina do workflow selecionado."""
     workflow = _get_workflow_for_user_by_name(workflow_nome)
     if workflow.tipo == 'analise_jp':
-        return redirect(url_for('analise_jp.analise_jp_view', workflow_id=workflow.id))
+        context = build_analise_jp_dashboard_context(workflow)
+        return render_template('analise_jp.html', **context)
 
     arquivo_atual = _get_latest_file_for_workflow(workflow.id, include_payload=False)
-    arquivo_atual, processed_data = _get_processed_data_for_workflow(workflow.id)
 
     arquivo_atual_metadata = (
         _serialize_arquivo_metadata(arquivo_atual)
