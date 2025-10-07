@@ -17,7 +17,6 @@ from app.models.analise_upload import AnaliseUpload
 from app.models.workflow import Workflow
 from app.services.theme_service import get_theme_context
 
-
 analise_jp_bp = Blueprint('analise_jp', __name__)
 
 ANALISE_JP_CATEGORIES: List[str] = [
@@ -62,6 +61,7 @@ def _serialize_upload(upload: AnaliseUpload, include_data: bool = False) -> Dict
     return payload
 
 
+
 def build_analise_jp_dashboard_context(workflow: Workflow) -> Dict[str, object]:
     theme = get_theme_context()
     existing_categories = {
@@ -83,6 +83,39 @@ def build_analise_jp_dashboard_context(workflow: Workflow) -> Dict[str, object]:
         'category_status': category_status,
     }
 
+
+def build_analise_jp_charts_context(workflow: Workflow) -> Dict[str, object]:
+    theme = get_theme_context()
+    categories_meta = []
+    for categoria in ANALISE_JP_CATEGORIES:
+
+        latest_upload = _get_latest_upload_for_category(
+            workflow.id,
+            categoria,
+            include_data=False,
+        )
+        categories_meta.append({
+            'slug': categoria,
+            'label': _slug_to_label(categoria),
+            'has_data': latest_upload is not None,
+        latest_upload = _get_latest_upload_for_category(workflow.id, categoria)
+        visible_records = _get_visible_records(latest_upload)
+        categories_meta.append({
+            'slug': categoria,
+            'label': _slug_to_label(categoria),
+            'has_data': bool(visible_records),
+            'latest_upload': None if not latest_upload else {
+                'id': latest_upload.id,
+                'nome_arquivo': latest_upload.nome_arquivo,
+                'created_at': latest_upload.created_at.isoformat() if latest_upload.created_at else None
+            }
+        })
+
+    return {
+        'workflow': workflow,
+        'theme': theme,
+        'categories_meta': categories_meta,
+    }
 
 def _validate_category(categoria: str) -> None:
     if categoria not in ANALISE_JP_CATEGORIES:
@@ -246,12 +279,32 @@ def analise_jp_view(workflow_id: int):
     workflow = _get_workflow_or_404(workflow_id)
     return redirect(url_for('workflow.workflow_view', workflow_nome=workflow.nome), code=302)
 
+    if workflow.tipo != 'analise_jp':
+        return redirect(url_for('workflow.workflow_view', workflow_nome=workflow.nome))
+
+    context = build_analise_jp_dashboard_context(workflow)
+    return render_template('analise_jp.html', **context)
+
 
 @analise_jp_bp.route('/analise_jp/<int:workflow_id>/graficos')
 @login_required
 def analise_jp_charts_view(workflow_id: int):
     workflow = _get_workflow_or_404(workflow_id)
+          
     return redirect(url_for('workflow.workflow_view', workflow_nome=workflow.nome), code=302)
+
+    return redirect(url_for('workflow.workflow_charts_view', workflow_nome=workflow.nome), code=302)
+
+    return redirect(url_for('workflow.workflow_charts_view', workflow_nome=workflow.nome), code=302)
+    
+    return redirect(url_for('workflow.workflow_charts_view', workflow_nome=workflow.nome), code=302)
+  
+    if workflow.tipo != 'analise_jp':
+        return redirect(url_for('workflow.workflow_view', workflow_nome=workflow.nome))
+
+    context = build_analise_jp_charts_context(workflow)
+    return render_template('analise_jp_charts.html', **context)
+
 
 
 @analise_jp_bp.route('/analise_jp/<int:workflow_id>/uploads/<string:categoria>', methods=['GET'])

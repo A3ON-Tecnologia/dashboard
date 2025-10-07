@@ -5,10 +5,8 @@ from flask import (
     Blueprint,
     current_app,
     jsonify,
-    redirect,
     render_template,
     request,
-    url_for,
 )
 from flask_login import login_required, current_user
 from sqlalchemy.orm import defer
@@ -23,6 +21,7 @@ from app.services.workflow_import_service import (
 )
 from app.routes.analise_jp import (
     build_analise_jp_dashboard_context,
+    build_analise_jp_charts_context,
 )
 
 workflow_bp = Blueprint('workflow', __name__)
@@ -98,6 +97,20 @@ def dashboard():
 def workflow_charts_view(workflow_nome):
     workflow = _get_workflow_for_user_by_name(workflow_nome)
     return redirect(url_for('workflow.workflow_view', workflow_nome=workflow.nome), code=302)
+
+    if workflow.tipo == 'analise_jp':
+        context = build_analise_jp_charts_context(workflow)
+        return render_template('analise_jp_charts.html', **context)
+    arquivo_atual, processed_data = _get_processed_data_for_workflow(workflow.id)
+
+    theme = get_theme_context()
+    return render_template(
+        'workflow_charts.html',
+        workflow=workflow,
+        theme=theme,
+        arquivo_atual=arquivo_atual,
+        processed_data=processed_data,
+    )
 
 @workflow_bp.route('/dashboard/<workflow_nome>')
 @login_required
