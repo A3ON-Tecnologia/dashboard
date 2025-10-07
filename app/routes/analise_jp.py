@@ -1,10 +1,10 @@
 import io
 from datetime import datetime
 from pathlib import Path
-from typing import List, Tuple, Optional, Iterable, Set
+from typing import Dict, List, Tuple, Optional, Iterable, Set
 
 import pandas as pd
-from flask import Blueprint, current_app, jsonify, redirect, render_template, request, url_for
+from flask import Blueprint, current_app, jsonify, redirect, request, url_for
 from flask_login import current_user, login_required
 from werkzeug.datastructures import FileStorage
 from werkzeug.utils import secure_filename
@@ -39,6 +39,52 @@ ALLOWED_EXTENSIONS = {'.csv', '.xlsx'}
 
 def _get_workflow_or_404(workflow_id: int) -> Workflow:
     return Workflow.query.filter_by(id=workflow_id, usuario_id=current_user.id).first_or_404()
+
+
+def build_analise_jp_dashboard_context(workflow: Workflow) -> Dict[str, object]:
+    theme = get_theme_context()
+    existing_categories = {
+        row[0]
+        for row in (
+            db.session.query(distinct(AnaliseUpload.categoria))
+            .filter_by(workflow_id=workflow.id)
+            .all()
+        )
+    }
+    category_status = {
+        categoria: categoria in existing_categories
+        for categoria in ANALISE_JP_CATEGORIES
+    }
+    return {
+        'workflow': workflow,
+        'theme': theme,
+        'categories': ANALISE_JP_CATEGORIES,
+        'category_status': category_status,
+    }
+
+
+def build_analise_jp_charts_context(workflow: Workflow) -> Dict[str, object]:
+    theme = get_theme_context()
+    categories_meta = []
+    for categoria in ANALISE_JP_CATEGORIES:
+        latest_upload = _get_latest_upload_for_category(workflow.id, categoria)
+        visible_records = _get_visible_records(latest_upload)
+        categories_meta.append({
+            'slug': categoria,
+            'label': _slug_to_label(categoria),
+            'has_data': bool(visible_records),
+            'latest_upload': None if not latest_upload else {
+                'id': latest_upload.id,
+                'nome_arquivo': latest_upload.nome_arquivo,
+                'created_at': latest_upload.created_at.isoformat() if latest_upload.created_at else None
+            }
+        })
+
+    return {
+        'workflow': workflow,
+        'theme': theme,
+        'categories_meta': categories_meta,
+    }
 
 
 def _validate_category(categoria: str) -> None:
@@ -192,60 +238,14 @@ def _extract_payload(file: FileStorage) -> Tuple[List[dict], bytes]:
 @login_required
 def analise_jp_view(workflow_id: int):
     workflow = _get_workflow_or_404(workflow_id)
-    if workflow.tipo != 'analise_jp':
-        return redirect(url_for('workflow.workflow_view', workflow_nome=workflow.nome))
-
-    theme = get_theme_context()
-    existing_categories = {
-        row[0]
-        for row in (
-            db.session.query(distinct(AnaliseUpload.categoria))
-            .filter_by(workflow_id=workflow.id)
-            .all()
-        )
-    }
-    category_status = {
-        categoria: categoria in existing_categories
-        for categoria in ANALISE_JP_CATEGORIES
-    }
-    return render_template(
-        'analise_jp.html',
-        workflow=workflow,
-        theme=theme,
-        categories=ANALISE_JP_CATEGORIES,
-        category_status=category_status,
-    )
+    return redirect(url_for('workflow.workflow_view', workflow_nome=workflow.nome), code=302)
 
 
 @analise_jp_bp.route('/analise_jp/<int:workflow_id>/graficos')
 @login_required
 def analise_jp_charts_view(workflow_id: int):
     workflow = _get_workflow_or_404(workflow_id)
-    if workflow.tipo != 'analise_jp':
-        return redirect(url_for('workflow.workflow_view', workflow_nome=workflow.nome))
-
-    theme = get_theme_context()
-
-    categories_meta = []
-    for categoria in ANALISE_JP_CATEGORIES:
-        latest_upload = _get_latest_upload_for_category(workflow.id, categoria)
-        visible_records = _get_visible_records(latest_upload)
-        categories_meta.append({
-            'slug': categoria,
-            'label': _slug_to_label(categoria),
-            'has_data': bool(visible_records),
-            'latest_upload': None if not latest_upload else {
-                'id': latest_upload.id,
-                'nome_arquivo': latest_upload.nome_arquivo,
-                'created_at': latest_upload.created_at.isoformat() if latest_upload.created_at else None
-            }
-        })
-    return render_template(
-        'analise_jp_charts.html',
-        workflow=workflow,
-        theme=theme,
-        categories_meta=categories_meta,
-    )
+    return redirect(url_for('workflow.workflow_charts_view', workflow_nome=workflow.nome), code=302)
 
 
 @analise_jp_bp.route('/analise_jp/<int:workflow_id>/uploads/<string:categoria>', methods=['GET'])
