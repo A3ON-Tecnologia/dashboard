@@ -76,7 +76,7 @@
         }
     </style>
 </head>
-<body class="{{ theme.bg }} {{ theme.text }} font-sans min-h-screen overflow-hidden">
+<body class="{{ theme.bg }} {{ theme.text }} font-sans min-h-screen overflow-x-hidden overflow-y-auto">
     <div class="flex h-full">
         {% include 'partials/sidebar.html' %}
 
@@ -147,7 +147,7 @@
 
     <div id="chartModal" class="fixed inset-0 z-[120] hidden">
         <div data-modal-backdrop class="absolute inset-0 bg-black/70 opacity-0 transition-opacity"></div>
-        <div data-modal-panel class="relative max-w-5xl mx-auto mt-16 mb-10 bg-slate-900/95 border border-white/10 rounded-3xl shadow-2xl shadow-blue-500/20 overflow-hidden scale-95 opacity-0">
+        <div data-modal-panel class="relative max-w-5xl mx-auto mt-16 mb-10 bg-slate-900/95 border border-white/10 rounded-3xl shadow-2xl shadow-blue-500/20 overflow-hidden scale-95 opacity-0 flex flex-col max-h-[calc(100vh-4rem)]">
             <div class="flex items-center justify-between px-8 py-6 border-b border-white/10">
                 <div>
                     <h3 id="chartModalTitle" class="text-2xl font-semibold">Criar gráfico</h3>
@@ -160,7 +160,7 @@
                 </button>
             </div>
 
-            <div class="px-8 py-6 space-y-6">
+            <div class="px-8 py-6 space-y-6 flex-1 overflow-y-auto">
                 <div class="flex items-center gap-2 text-xs uppercase tracking-[0.3em] text-white/40">
                     <span data-step-indicator="1" class="px-3 py-1 rounded-full border border-white/10">Tipo</span>
                     <span class="text-white/20">•</span>
