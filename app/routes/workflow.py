@@ -56,26 +56,6 @@ def _serialize_arquivo_metadata(
         metadata['total_indicadores'] = total_indicadores
 
     return metadata
-
-    if include_counts:
-        total_indicadores = 0
-
-        dados_extraidos = arquivo.dados_extraidos or {}
-
-        dados_extraidos = arquivo.dados_extraidos
-
-        if isinstance(dados_extraidos, dict):
-            raw_total = dados_extraidos.get('total_indicadores')
-            if isinstance(raw_total, (int, float)):
-                total_indicadores = int(raw_total)
-            else:
-                indicadores = dados_extraidos.get('indicadores')
-                if isinstance(indicadores, list):
-                    total_indicadores = len(indicadores)
-
-        metadata['total_indicadores'] = total_indicadores
-
-    return metadata
   
 def _get_workflow_for_user_by_name(workflow_nome):
     return Workflow.query.filter_by(

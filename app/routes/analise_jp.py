@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Dict, List, Tuple, Optional, Iterable, Set
 
 import pandas as pd
-from flask import Blueprint, current_app, jsonify, redirect, render_template, request, url_for
+from flask import Blueprint, current_app, jsonify, redirect, request, url_for
 from flask_login import current_user, login_required
 from werkzeug.datastructures import FileStorage
 from werkzeug.utils import secure_filename
@@ -238,6 +238,7 @@ def _extract_payload(file: FileStorage) -> Tuple[List[dict], bytes]:
 @login_required
 def analise_jp_view(workflow_id: int):
     workflow = _get_workflow_or_404(workflow_id)
+    return redirect(url_for('workflow.workflow_view', workflow_nome=workflow.nome), code=302)
     if workflow.tipo != 'analise_jp':
         return redirect(url_for('workflow.workflow_view', workflow_nome=workflow.nome))
 
@@ -249,11 +250,15 @@ def analise_jp_view(workflow_id: int):
 @login_required
 def analise_jp_charts_view(workflow_id: int):
     workflow = _get_workflow_or_404(workflow_id)
+    
+    return redirect(url_for('workflow.workflow_charts_view', workflow_nome=workflow.nome), code=302)
+  
     if workflow.tipo != 'analise_jp':
         return redirect(url_for('workflow.workflow_view', workflow_nome=workflow.nome))
 
     context = build_analise_jp_charts_context(workflow)
     return render_template('analise_jp_charts.html', **context)
+
 
 
 @analise_jp_bp.route('/analise_jp/<int:workflow_id>/uploads/<string:categoria>', methods=['GET'])
