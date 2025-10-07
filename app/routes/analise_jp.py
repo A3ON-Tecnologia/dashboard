@@ -65,25 +65,10 @@ def build_analise_jp_dashboard_context(workflow: Workflow) -> Dict[str, object]:
 
 def build_analise_jp_charts_context(workflow: Workflow) -> Dict[str, object]:
     theme = get_theme_context()
-    categories_meta = []
-    for categoria in ANALISE_JP_CATEGORIES:
-        latest_upload = _get_latest_upload_for_category(workflow.id, categoria)
-        visible_records = _get_visible_records(latest_upload)
-        categories_meta.append({
-            'slug': categoria,
-            'label': _slug_to_label(categoria),
-            'has_data': bool(visible_records),
-            'latest_upload': None if not latest_upload else {
-                'id': latest_upload.id,
-                'nome_arquivo': latest_upload.nome_arquivo,
-                'created_at': latest_upload.created_at.isoformat() if latest_upload.created_at else None
-            }
-        })
-
     return {
         'workflow': workflow,
         'theme': theme,
-        'categories_meta': categories_meta,
+        'categories_meta': [],
     }
 
 

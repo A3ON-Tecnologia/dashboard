@@ -70,7 +70,7 @@
                                 </span>
                             </div>
                             <p class="text-white/70 max-w-3xl leading-relaxed">
-                                A funcionalidade de gráficos da Análise JP foi desativada. Mantenha seus uploads organizados e utilize os dados diretamente nas tabelas do workflow.
+                                Construa e acompanhe visualizações personalizadas para os dados deste workflow sempre que precisar.
                             </p>
                             <p class="text-xs text-white/40 uppercase tracking-widest">
                                 Criado em {{ workflow.data_criacao.strftime('%d/%m/%Y %H:%M') }}
@@ -91,48 +91,50 @@
                 <section class="glass-panel {{ theme.modal }} border border-white/5 rounded-3xl p-8 md:p-10 shadow-xl shadow-emerald-500/10 space-y-6 fade-in">
                     <div class="space-y-2">
                         <h2 class="text-2xl font-semibold tracking-tight">Galeria de gráficos</h2>
-                        <p class="text-sm text-white/60">A criação de gráficos personalizados não está mais disponível, mas as categorias abaixo continuam recebendo uploads normalmente.</p>
+                        <p class="text-sm text-white/60">Crie gráficos personalizados para acompanhar os indicadores mais relevantes do seu processo.</p>
                     </div>
 
                     <div class="border border-dashed border-white/10 rounded-2xl p-8 space-y-6">
                         <div class="text-center space-y-3">
                             <div class="w-12 h-12 mx-auto rounded-full border border-white/15 flex items-center justify-center text-white/50">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 12h18m-9-9v18" />
                                 </svg>
                             </div>
-                            <h3 class="text-lg font-semibold text-white/80">Visualizações descontinuadas</h3>
+                            <h3 class="text-lg font-semibold text-white/80">Galeria vazia</h3>
                             <p class="text-sm text-white/60 max-w-2xl mx-auto">
-                                Use os botões do workflow principal para importar arquivos, revisar registros e ocultar linhas quando necessário. Todas as demais rotinas permanecem inalteradas.
+                                Nenhum gráfico foi criado até o momento. Utilize o botão <strong>Criar gráfico</strong> para adicionar a primeira visualização.
                             </p>
                         </div>
 
-                        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                            {% for categoria in categories_meta %}
-                                <div class="glass-panel border border-white/10 rounded-2xl p-5 space-y-3">
-                                    <div class="flex items-center justify-between">
-                                        <h4 class="text-base font-semibold text-white/80">{{ categoria.label }}</h4>
-                                        {% if categoria.has_data %}
-                                            <span class="px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide bg-emerald-500/20 text-emerald-200">Dados ativos</span>
+                        {% if categories_meta %}
+                            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                                {% for grafico in categories_meta %}
+                                    <div class="glass-panel border border-white/10 rounded-2xl p-5 space-y-3">
+                                        <div class="flex items-center justify-between">
+                                            <h4 class="text-base font-semibold text-white/80">{{ grafico.label }}</h4>
+                                            {% if grafico.has_data %}
+                                                <span class="px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide bg-emerald-500/20 text-emerald-200">Atualizado</span>
+                                            {% else %}
+                                                <span class="px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide bg-white/10 text-white/60">Sem dados</span>
+                                            {% endif %}
+                                        </div>
+                                        {% if grafico.latest_upload %}
+                                            {% set created_at = grafico.latest_upload.created_at %}
+                                            {% if created_at %}
+                                                {% set data_parts = created_at.split('T')[0].split('-') %}
+                                                <p class="text-xs text-white/50">Última atualização em {{ data_parts[2] }}/{{ data_parts[1] }}/{{ data_parts[0] }}</p>
+                                            {% else %}
+                                                <p class="text-xs text-white/50">Última atualização registrada.</p>
+                                            {% endif %}
+                                            <p class="text-sm text-white/70 truncate" title="{{ grafico.latest_upload.nome_arquivo }}">{{ grafico.latest_upload.nome_arquivo }}</p>
                                         {% else %}
-                                            <span class="px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide bg-white/10 text-white/60">Sem dados</span>
+                                            <p class="text-sm text-white/60">Adicione dados para começar a visualizar esta categoria.</p>
                                         {% endif %}
                                     </div>
-                                    {% if categoria.latest_upload %}
-                                        {% set created_at = categoria.latest_upload.created_at %}
-                                        {% if created_at %}
-                                            {% set data_parts = created_at.split('T')[0].split('-') %}
-                                            <p class="text-xs text-white/50">Último upload em {{ data_parts[2] }}/{{ data_parts[1] }}/{{ data_parts[0] }}</p>
-                                        {% else %}
-                                            <p class="text-xs text-white/50">Último upload registrado.</p>
-                                        {% endif %}
-                                        <p class="text-sm text-white/70 truncate" title="{{ categoria.latest_upload.nome_arquivo }}">{{ categoria.latest_upload.nome_arquivo }}</p>
-                                    {% else %}
-                                        <p class="text-sm text-white/60">Ainda não há uploads para esta categoria.</p>
-                                    {% endif %}
-                                </div>
-                            {% endfor %}
-                        </div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
                     </div>
                 </section>
             </div>
