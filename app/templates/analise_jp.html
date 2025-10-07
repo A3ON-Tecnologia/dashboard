@@ -159,6 +159,10 @@
                                 </div>
                                 <p>Nenhum upload selecionado.</p>
                             </div>
+                            <div id="tableLoading" class="hidden border border-dashed border-white/10 rounded-2xl p-8 text-center space-y-3 text-white/60">
+                                <div class="mx-auto w-10 h-10 rounded-full border-2 border-white/10 border-t-white animate-spin"></div>
+                                <p>Carregando dados do upload selecionado...</p>
+                            </div>
                             <div id="tableWrapper" class="hidden overflow-x-auto rounded-2xl border border-white/5">
                                 <table class="min-w-full divide-y divide-white/5">
                                     <thead id="tableHead" class="bg-white/5 uppercase tracking-[0.2em] text-[11px] text-white/60"></thead>
@@ -251,6 +255,7 @@
         const categorySubtitle = document.getElementById('categorySubtitle');
         const tableSubtitle = document.getElementById('tableSubtitle');
         const tableEmptyState = document.getElementById('tableEmptyState');
+        const tableLoading = document.getElementById('tableLoading');
         const tableWrapper = document.getElementById('tableWrapper');
         const tableHead = document.getElementById('tableHead');
         const tableBody = document.getElementById('tableBody');
@@ -271,6 +276,84 @@
         const deleteModalCancel = document.getElementById('deleteModalCancel');
         const deleteModalConfirm = document.getElementById('deleteModalConfirm');
         const deleteModalConfirmText = document.getElementById('deleteModalConfirmText');
+        const datasetRequests = new Map();
+
+        function arraysEqual(first, second) {
+            if (first === second) {
+                return true;
+            }
+
+            if (!Array.isArray(first) || !Array.isArray(second) || first.length !== second.length) {
+                return false;
+            }
+
+            for (let index = 0; index < first.length; index += 1) {
+                if (first[index] !== second[index]) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        function replaceChildrenSafe(target, ...nodes) {
+            if (!target) {
+                return;
+            }
+
+            if (typeof target.replaceChildren === 'function') {
+                target.replaceChildren(...nodes);
+                return;
+            }
+
+            target.innerHTML = '';
+            nodes.forEach(node => {
+                if (node) {
+                    target.appendChild(node);
+                }
+            });
+        }
+
+        function normaliseColumnName(column) {
+            if (column === null || column === undefined) {
+                return '';
+            }
+
+            try {
+                return String(column)
+                    .normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '')
+                    .toLowerCase();
+            } catch (error) {
+                return String(column).toLowerCase();
+            }
+        }
+
+        function reorderColumns(columns) {
+            if (!Array.isArray(columns) || columns.length === 0) {
+                return [];
+            }
+
+            const entries = columns.map((column, index) => ({
+                column,
+                index,
+                normalised: normaliseColumnName(column)
+            }));
+
+            const descriptionEntry = entries.find(entry => entry.normalised.includes('descricao'));
+            if (!descriptionEntry) {
+                return [...columns];
+            }
+
+            const ordered = [descriptionEntry.column];
+            entries.forEach(entry => {
+                if (entry.index !== descriptionEntry.index) {
+                    ordered.push(entry.column);
+                }
+            });
+
+            return ordered;
+        }
 
         function normaliseColumnName(column) {
             if (column === null || column === undefined) {
@@ -401,6 +484,20 @@
             }
         }
 
+        function setTableLoading(isLoading) {
+            if (!tableLoading) {
+                return;
+            }
+
+            if (isLoading) {
+                tableLoading.classList.remove('hidden');
+                tableEmptyState.classList.add('hidden');
+                tableWrapper.classList.add('hidden');
+            } else {
+                tableLoading.classList.add('hidden');
+            }
+        }
+
         function updateCategoryHeader() {
             if (!currentCategory) {
                 activeCategoryLabel.textContent = '-';
@@ -420,8 +517,9 @@
         }
 
         function clearTable() {
-            tableHead.innerHTML = '';
-            tableBody.innerHTML = '';
+            replaceChildrenSafe(tableHead);
+            replaceChildrenSafe(tableBody);
+            setTableLoading(false);
             tableWrapper.classList.add('hidden');
             tableEmptyState.classList.remove('hidden');
             tableSubtitle.textContent = 'Selecione um upload para visualizar os dados extraídos.';
@@ -433,7 +531,7 @@
                 hiddenRowsSection.classList.add('hidden');
             }
             if (hiddenRowsList) {
-                hiddenRowsList.innerHTML = '';
+                replaceChildrenSafe(hiddenRowsList);
             }
             if (hiddenRowsCount) {
                 hiddenRowsCount.textContent = '';
@@ -456,6 +554,7 @@
             const columns = reorderColumns(
                 Object.keys(records[0]).filter(column => !column.startsWith('__'))
             );
+
             tableHead.innerHTML = '';
             tableBody.innerHTML = '';
 
@@ -472,8 +571,9 @@
             actionTh.className = 'px-4 py-3 text-right';
             headerRow.appendChild(actionTh);
 
-            tableHead.appendChild(headerRow);
+            replaceChildrenSafe(tableHead, headerRow);
 
+            const bodyFragment = document.createDocumentFragment();
             records.forEach(record => {
                 const tr = document.createElement('tr');
                 tr.className = 'hover:bg-white/5 transition-colors';
@@ -508,8 +608,10 @@
 
                 actionTd.appendChild(hideButton);
                 tr.appendChild(actionTd);
-                tableBody.appendChild(tr);
+                bodyFragment.appendChild(tr);
             });
+
+            replaceChildrenSafe(tableBody, bodyFragment);
         }
 
         function highlightActiveUpload(uploadId) {
@@ -524,7 +626,7 @@
         }
 
         function renderUploads(category, uploads) {
-            uploadsList.innerHTML = '';
+            replaceChildrenSafe(uploadsList);
 
             const hasUploads = Array.isArray(uploads) && uploads.length > 0;
             updateCategoryCompletion(category, hasUploads);
@@ -539,12 +641,15 @@
             }
 
             uploadsEmptyState.classList.add('hidden');
-            uploads.forEach(normaliseUpload);
+            uploads.forEach(upload => normaliseUpload(upload, {
+                datasetLoaded: upload.__datasetLoaded === true
+            }));
 
             if (!uploads.some(upload => upload.id === activeUploadId)) {
                 activeUploadId = uploads[0]?.id ?? null;
             }
 
+            const fragment = document.createDocumentFragment();
             uploads.forEach(upload => {
                 const itemWrapper = document.createElement('div');
                 itemWrapper.className = 'flex items-center gap-3';
@@ -585,8 +690,10 @@
                 itemWrapper.appendChild(button);
                 itemWrapper.appendChild(deleteButton);
 
-                uploadsList.appendChild(itemWrapper);
+                fragment.appendChild(itemWrapper);
             });
+
+            replaceChildrenSafe(uploadsList, fragment);
 
             if (category === currentCategory && activeUploadId !== null) {
                 selectUpload(activeUploadId);
@@ -595,12 +702,15 @@
             }
         }
 
-        function normaliseUpload(upload) {
+        function normaliseUpload(upload, options = {}) {
             if (!upload) {
                 return upload;
             }
 
-            if (!Array.isArray(upload.dados_extraidos)) {
+            const hasDatasetProperty = Object.prototype.hasOwnProperty.call(upload, 'dados_extraidos');
+            const hasDatasetArray = Array.isArray(upload.dados_extraidos);
+
+            if (!hasDatasetArray) {
                 upload.dados_extraidos = [];
             }
 
@@ -611,23 +721,47 @@
                 .sort((a, b) => a - b);
 
             const uniqueHidden = Array.from(new Set(cleanedHidden));
-            upload.linhas_ocultas = uniqueHidden;
+            const currentHidden = Array.isArray(upload.linhas_ocultas) ? upload.linhas_ocultas : [];
+            if (!arraysEqual(uniqueHidden, currentHidden)) {
+                upload.linhas_ocultas = uniqueHidden;
+                upload.__recordsCache = null;
+            }
+
+            if (options.datasetLoaded === true) {
+                upload.__datasetLoaded = true;
+                upload.__recordsCache = null;
+            } else if (options.datasetLoaded === false) {
+                upload.__datasetLoaded = false;
+            } else if (!hasDatasetProperty && upload.__datasetLoaded === undefined) {
+                upload.__datasetLoaded = false;
+            } else if (hasDatasetArray && upload.__datasetLoaded === undefined) {
+                upload.__datasetLoaded = true;
+            }
+
+            if (options.forceResetCache) {
+                upload.__recordsCache = null;
+            }
+
             return upload;
         }
 
-        function prepareRecords(upload, options = {}) {
+        function getPreparedRecords(upload) {
             if (!upload || !Array.isArray(upload.dados_extraidos)) {
-                return [];
+                return { all: [], visible: [], hidden: [] };
             }
 
-            const includeHidden = Boolean(options.includeHidden);
-            const hiddenSet = new Set(
-                Array.isArray(upload.linhas_ocultas)
-                    ? upload.linhas_ocultas.map(value => Number.parseInt(value, 10)).filter(Number.isInteger)
-                    : []
-            );
+            const hiddenIndices = Array.isArray(upload.linhas_ocultas) ? upload.linhas_ocultas : [];
+            const cacheKey = `${upload.dados_extraidos.length}:${hiddenIndices.join(',')}`;
+            if (upload.__recordsCache && upload.__recordsCache.key === cacheKey) {
+                return upload.__recordsCache;
+            }
 
-            return upload.dados_extraidos.map((row, index) => {
+            const hiddenSet = new Set(hiddenIndices);
+            const allRecords = [];
+            const visibleRecords = [];
+            const hiddenRecords = [];
+
+            upload.dados_extraidos.forEach((row, index) => {
                 const entry = { __rowIndex: index, __hidden: hiddenSet.has(index) };
 
                 if (row && typeof row === 'object' && !Array.isArray(row)) {
@@ -636,8 +770,23 @@
                     });
                 }
 
-                return entry;
-            }).filter(record => includeHidden ? true : !record.__hidden);
+                allRecords.push(entry);
+                if (entry.__hidden) {
+                    hiddenRecords.push(entry);
+                } else {
+                    visibleRecords.push(entry);
+                }
+            });
+
+            const cache = {
+                key: cacheKey,
+                all: allRecords,
+                visible: visibleRecords,
+                hidden: hiddenRecords
+            };
+
+            upload.__recordsCache = cache;
+            return cache;
         }
 
         function updateActiveUploadInfo(upload) {
@@ -663,13 +812,16 @@
             activeUploadInfo.textContent = parts.join(' • ');
         }
 
-        function renderHiddenRows(upload) {
+        function renderHiddenRows(upload, providedHiddenRecords) {
             if (!hiddenRowsSection || !hiddenRowsList) {
                 return;
             }
 
-            const hiddenRecords = prepareRecords(upload, { includeHidden: true }).filter(record => record.__hidden);
-            hiddenRowsList.innerHTML = '';
+            const hiddenRecords = Array.isArray(providedHiddenRecords)
+                ? providedHiddenRecords
+                : getPreparedRecords(upload).hidden;
+
+            replaceChildrenSafe(hiddenRowsList);
 
             if (!hiddenRecords.length) {
                 hiddenRowsSection.classList.add('hidden');
@@ -703,6 +855,7 @@
                 Object.keys(hiddenRecords[0]).filter(key => !key.startsWith('__'))
             );
 
+            const fragment = document.createDocumentFragment();
             hiddenRecords.forEach(record => {
                 const item = document.createElement('div');
                 item.className = 'flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3';
@@ -737,8 +890,10 @@
                 item.appendChild(preview);
                 item.appendChild(actionsWrapper);
 
-                hiddenRowsList.appendChild(item);
+                fragment.appendChild(item);
             });
+
+            replaceChildrenSafe(hiddenRowsList, fragment);
 
             if (restoreAllHiddenButton) {
                 restoreAllHiddenButton.classList.remove('hidden');
@@ -763,12 +918,40 @@
 
             normaliseUpload(upload);
 
-            const visibleRecords = prepareRecords(upload);
-            const hiddenCount = Array.isArray(upload.linhas_ocultas) ? upload.linhas_ocultas.length : 0;
+            if (!upload.__datasetLoaded) {
+                setTableLoading(true);
+                tableEmptyState.classList.add('hidden');
+                tableWrapper.classList.add('hidden');
+
+                ensureUploadDataset(upload)
+                    .then(resolvedUpload => {
+                        if (resolvedUpload && activeUploadId === resolvedUpload.id) {
+                            renderTableForUpload(resolvedUpload);
+                        }
+                    })
+                    .catch(error => {
+                        setTableLoading(false);
+                        showToast(error.message || 'Falha ao carregar os dados do upload selecionado.', 'error');
+                        if (activeUploadId === upload.id) {
+                            clearTable();
+                            if (tableEmptyStateMessage) {
+                                tableEmptyStateMessage.textContent = 'Não foi possível carregar os dados deste upload.';
+                            }
+                        }
+                    });
+
+                return;
+            }
+
+            setTableLoading(false);
+
+            const prepared = getPreparedRecords(upload);
+            const visibleRecords = prepared.visible;
+            const hiddenCount = prepared.hidden.length;
 
             if (!visibleRecords.length) {
-                tableHead.innerHTML = '';
-                tableBody.innerHTML = '';
+                replaceChildrenSafe(tableHead);
+                replaceChildrenSafe(tableBody);
                 tableWrapper.classList.add('hidden');
                 tableEmptyState.classList.remove('hidden');
                 if (tableEmptyStateMessage) {
@@ -790,7 +973,77 @@
             }
 
             updateActiveUploadInfo(upload);
-            renderHiddenRows(upload);
+            renderHiddenRows(upload, prepared.hidden);
+        }
+
+        function buildDatasetUrl(upload) {
+            if (!upload || !upload.id) {
+                return null;
+            }
+
+            const categoria = upload.categoria || currentCategory;
+            if (!categoria) {
+                return null;
+            }
+
+            return `/analise_jp/${workflowId}/uploads/${encodeURIComponent(categoria)}/${upload.id}/dataset`;
+        }
+
+        function fetchUploadDataset(upload) {
+            const url = buildDatasetUrl(upload);
+            if (!url) {
+                return Promise.reject(new Error('Não foi possível carregar os dados do upload selecionado.'));
+            }
+
+            if (datasetRequests.has(url)) {
+                return datasetRequests.get(url);
+            }
+
+            const request = fetch(url)
+                .then(async response => {
+                    const data = await response.json().catch(() => ({}));
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Falha ao carregar os dados do upload selecionado.');
+                    }
+
+                    if (!data.upload) {
+                        throw new Error('Resposta do servidor inválida.');
+                    }
+
+                    Object.assign(upload, data.upload);
+                    normaliseUpload(upload, { datasetLoaded: true, forceResetCache: true });
+
+                    const categoria = upload.categoria || currentCategory;
+                    if (categoria) {
+                        const cachedUploads = uploadsCache[categoria];
+                        if (Array.isArray(cachedUploads)) {
+                            const existingIndex = cachedUploads.findIndex(item => item.id === upload.id);
+                            if (existingIndex !== -1) {
+                                cachedUploads[existingIndex] = upload;
+                            } else {
+                                cachedUploads.unshift(upload);
+                            }
+                        } else {
+                            uploadsCache[categoria] = [upload];
+                        }
+                    }
+
+                    return upload;
+                })
+                .finally(() => {
+                    datasetRequests.delete(url);
+                });
+
+            datasetRequests.set(url, request);
+            return request;
+        }
+
+        function ensureUploadDataset(upload) {
+            if (upload && upload.__datasetLoaded) {
+                return Promise.resolve(upload);
+            }
+
+            return fetchUploadDataset(upload);
         }
 
         function buildHiddenRowsUrl(upload) {
@@ -829,12 +1082,14 @@
                         : [];
 
                     upload.linhas_ocultas = normalisedHidden;
+                    upload.__recordsCache = null;
 
                     const categoria = upload.categoria || currentCategory;
                     if (categoria && Array.isArray(uploadsCache[categoria])) {
                         const cachedUpload = uploadsCache[categoria].find(item => item.id === upload.id);
                         if (cachedUpload && cachedUpload !== upload) {
                             cachedUpload.linhas_ocultas = [...normalisedHidden];
+                            cachedUpload.__recordsCache = null;
                         }
                     }
 
@@ -1072,7 +1327,13 @@
                         uploadsEmptyState.classList.remove('hidden');
                         return;
                     }
-                    const uploads = (data.uploads || []).map(upload => normaliseUpload(upload));
+                    const uploads = (data.uploads || []).map(upload => {
+                        const hasDataset = Object.prototype.hasOwnProperty.call(upload, 'dados_extraidos');
+                        return normaliseUpload(upload, {
+                            datasetLoaded: hasDataset,
+                            forceResetCache: true
+                        });
+                    });
                     uploadsCache[category] = uploads;
                     renderUploads(category, uploads);
                 })
@@ -1115,7 +1376,10 @@
 
                     showToast(data.message || 'Upload realizado com sucesso!', 'success');
                     fileInput.value = '';
-                    const newUpload = normaliseUpload(data.upload);
+                    const newUpload = normaliseUpload(data.upload, {
+                        datasetLoaded: true,
+                        forceResetCache: true
+                    });
                     uploadsCache[currentCategory] = [newUpload, ...(uploadsCache[currentCategory] || [])];
                     activeUploadId = newUpload.id;
                     renderUploads(currentCategory, uploadsCache[currentCategory]);

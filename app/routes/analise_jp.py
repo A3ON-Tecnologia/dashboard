@@ -10,12 +10,12 @@ from werkzeug.datastructures import FileStorage
 from werkzeug.utils import secure_filename
 
 from sqlalchemy import distinct
+from sqlalchemy.orm import defer
 
 from app import db
 from app.models.analise_upload import AnaliseUpload
 from app.models.workflow import Workflow
 from app.services.theme_service import get_theme_context
-
 
 analise_jp_bp = Blueprint('analise_jp', __name__)
 
@@ -39,6 +39,27 @@ ALLOWED_EXTENSIONS = {'.csv', '.xlsx'}
 
 def _get_workflow_or_404(workflow_id: int) -> Workflow:
     return Workflow.query.filter_by(id=workflow_id, usuario_id=current_user.id).first_or_404()
+
+
+def _serialize_upload(upload: AnaliseUpload, include_data: bool = False) -> Dict[str, object]:
+    payload: Dict[str, object] = {
+        'id': upload.id,
+        'workflow_id': upload.workflow_id,
+        'categoria': upload.categoria,
+        'nome_arquivo': upload.nome_arquivo,
+        'caminho_arquivo': upload.caminho_arquivo,
+        'linhas_ocultas': _normalise_indices(upload.linhas_ocultas or []),
+        'created_at': upload.created_at.isoformat() if upload.created_at else None,
+        'data_upload': upload.data_upload.isoformat() if upload.data_upload else None,
+    }
+
+    if include_data:
+        payload['dados_extraidos'] = (
+            upload.dados_extraidos if isinstance(upload.dados_extraidos, list) else []
+        )
+
+    return payload
+
 
 
 def build_analise_jp_dashboard_context(workflow: Workflow) -> Dict[str, object]:
@@ -67,6 +88,16 @@ def build_analise_jp_charts_context(workflow: Workflow) -> Dict[str, object]:
     theme = get_theme_context()
     categories_meta = []
     for categoria in ANALISE_JP_CATEGORIES:
+
+        latest_upload = _get_latest_upload_for_category(
+            workflow.id,
+            categoria,
+            include_data=False,
+        )
+        categories_meta.append({
+            'slug': categoria,
+            'label': _slug_to_label(categoria),
+            'has_data': latest_upload is not None,
         latest_upload = _get_latest_upload_for_category(workflow.id, categoria)
         visible_records = _get_visible_records(latest_upload)
         categories_meta.append({
@@ -97,13 +128,22 @@ def _slug_to_label(slug: str) -> str:
     return ' '.join(parts) if parts else slug
 
 
-def _get_latest_upload_for_category(workflow_id: int, categoria: str) -> Optional[AnaliseUpload]:
-    return (
+def _get_latest_upload_for_category(
+    workflow_id: int,
+    categoria: str,
+    *,
+    include_data: bool = True,
+) -> Optional[AnaliseUpload]:
+    query = (
         AnaliseUpload.query
         .filter_by(workflow_id=workflow_id, categoria=categoria)
         .order_by(AnaliseUpload.created_at.desc())
-        .first()
     )
+
+    if not include_data:
+        query = query.options(defer(AnaliseUpload.dados_extraidos))
+
+    return query.first()
 
 
 def _normalise_indices(values: Iterable) -> List[int]:
@@ -240,6 +280,7 @@ def analise_jp_view(workflow_id: int):
     workflow = _get_workflow_or_404(workflow_id)
     return redirect(url_for('workflow.workflow_view', workflow_nome=workflow.nome), code=302)
 
+
     if workflow.tipo != 'analise_jp':
         return redirect(url_for('workflow.workflow_view', workflow_nome=workflow.nome))
 
@@ -251,6 +292,7 @@ def analise_jp_view(workflow_id: int):
 @login_required
 def analise_jp_charts_view(workflow_id: int):
     workflow = _get_workflow_or_404(workflow_id)
+    return redirect(url_for('workflow.workflow_charts_view', workflow_nome=workflow.nome), code=302)
 
     return redirect(url_for('workflow.workflow_charts_view', workflow_nome=workflow.nome), code=302)
     
@@ -261,7 +303,6 @@ def analise_jp_charts_view(workflow_id: int):
 
     context = build_analise_jp_charts_context(workflow)
     return render_template('analise_jp_charts.html', **context)
-
 
 
 
@@ -276,12 +317,13 @@ def listar_uploads(workflow_id: int, categoria: str):
 
     uploads = (
         AnaliseUpload.query
+        .options(defer(AnaliseUpload.dados_extraidos))
         .filter_by(workflow_id=workflow.id, categoria=categoria)
         .order_by(AnaliseUpload.created_at.desc())
         .all()
     )
 
-    return jsonify({'uploads': [upload.to_dict() for upload in uploads]})
+    return jsonify({'uploads': [_serialize_upload(upload) for upload in uploads]})
 
 
 @analise_jp_bp.route('/analise_jp/<int:workflow_id>/api/categorias/<string:categoria>/dataset', methods=['GET'])
@@ -322,6 +364,32 @@ def obter_dataset_categoria(workflow_id: int, categoria: str):
             'created_at': upload.created_at.isoformat() if upload.created_at else None
         }
     })
+
+
+@analise_jp_bp.route(
+    '/analise_jp/<int:workflow_id>/uploads/<string:categoria>/<int:upload_id>/dataset',
+    methods=['GET']
+)
+@login_required
+def obter_dataset_upload(workflow_id: int, categoria: str, upload_id: int):
+    workflow = _get_workflow_or_404(workflow_id)
+    try:
+        _validate_category(categoria)
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+
+    upload = (
+        AnaliseUpload.query
+        .filter_by(id=upload_id, workflow_id=workflow.id, categoria=categoria)
+        .first()
+    )
+
+    if not upload:
+        return jsonify({'error': 'Upload nao encontrado.'}), 404
+
+    payload = _serialize_upload(upload, include_data=True)
+
+    return jsonify({'upload': payload})
 
 
 @analise_jp_bp.route('/analise_jp/<int:workflow_id>/upload/<string:categoria>', methods=['POST'])
@@ -368,7 +436,9 @@ def upload_categoria(workflow_id: int, categoria: str):
     db.session.add(upload)
     db.session.commit()
 
-    return jsonify({'message': 'Upload realizado com sucesso!', 'upload': upload.to_dict()}), 201
+    payload = _serialize_upload(upload, include_data=True)
+
+    return jsonify({'message': 'Upload realizado com sucesso!', 'upload': payload}), 201
 
 
 @analise_jp_bp.route(
