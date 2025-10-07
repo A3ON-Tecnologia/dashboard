@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
 
 from flask import (
     Blueprint,
@@ -14,6 +14,8 @@ from sqlalchemy.orm import defer
 from app import db
 from app.models.workflow import Workflow
 from app.models.arquivo_importado import ArquivoImportado
+from app.models.dashboard import Dashboard
+from app.models.analise_jp_chart import AnaliseJPChart
 from app.services.theme_service import get_theme_context
 from app.services.workflow_import_service import (
     ImportacaoArquivoErro,
@@ -22,11 +24,14 @@ from app.services.workflow_import_service import (
 from app.routes.analise_jp import (
     build_analise_jp_dashboard_context,
     build_analise_jp_charts_context,
+    _slug_to_label,
+    _validate_category,
 )
 
 workflow_bp = Blueprint('workflow', __name__)
 
 WORKFLOW_ALLOWED_TYPES = {'balancete', 'analise_jp'}
+ALLOWED_CHART_TYPES = {'bar', 'bar-horizontal', 'line', 'area', 'pie'}
 
 
 def _serialize_arquivo_metadata(
@@ -64,6 +69,13 @@ def _get_workflow_for_user_by_name(workflow_nome):
     ).first_or_404()
 
 
+def _get_workflow_for_user(workflow_id: int) -> Workflow:
+    return Workflow.query.filter_by(
+        id=workflow_id,
+        usuario_id=current_user.id
+    ).first_or_404()
+
+
 def _get_latest_file_for_workflow(workflow_id, include_payload: bool = True):
     query = (
         ArquivoImportado.query
@@ -80,6 +92,157 @@ def _get_latest_file_for_workflow(workflow_id, include_payload: bool = True):
 def _get_processed_data_for_workflow(workflow_id):
     arquivo = _get_latest_file_for_workflow(workflow_id)
     return arquivo, arquivo.dados_extraidos if arquivo else None
+
+
+def _serialize_balancete_chart(chart: Dashboard) -> Dict[str, Any]:
+    options = chart.options or {}
+    stored_series = chart.indicators or []
+    colors: List[Optional[str]] = chart.colors or []
+    series: List[Dict[str, Any]] = []
+
+    for index, serie in enumerate(stored_series):
+        value_key = ''
+        label = ''
+
+        if isinstance(serie, dict):
+            value_key = str(serie.get('value_key') or '').strip()
+            label = str(serie.get('label') or '').strip()
+
+        if not label:
+            label = value_key or f'Série {index + 1}'
+
+        color = None
+        if index < len(colors):
+            color_candidate = colors[index]
+            if isinstance(color_candidate, str) and color_candidate.strip():
+                color = color_candidate.strip()
+
+        if not color and isinstance(options, dict):
+            series_colors = options.get('series_colors')
+            if isinstance(series_colors, dict):
+                color = series_colors.get(value_key)
+
+        series.append({
+            'label': label,
+            'value_key': value_key,
+            'color': color,
+        })
+
+    return {
+        'id': chart.id,
+        'workflow_id': chart.workflow_id,
+        'name': chart.nome or 'Gráfico',
+        'chart_type': chart.chart_type,
+        'label_key': chart.metric,
+        'series': series,
+        'source_type': 'balancete',
+        'source_id': (options or {}).get('source_id', 'latest'),
+        'options': options or {},
+        'created_at': chart.created_at.isoformat() if chart.created_at else None,
+        'updated_at': chart.updated_at.isoformat() if chart.updated_at else None,
+    }
+
+
+def _serialize_analise_chart(chart: AnaliseJPChart) -> Dict[str, Any]:
+    options = chart.options or {}
+    stored_series = chart.value_fields or []
+    series: List[Dict[str, Any]] = []
+
+    for index, serie in enumerate(stored_series):
+        if isinstance(serie, dict):
+            value_key = str(serie.get('value_key') or '').strip()
+            label = str(serie.get('label') or '').strip()
+        else:
+            value_key = str(serie or '')
+            label = value_key
+
+        if not label:
+            label = value_key or f'Série {index + 1}'
+
+        color = None
+        if isinstance(options, dict):
+            series_colors = options.get('series_colors')
+            if isinstance(series_colors, dict):
+                color = series_colors.get(value_key)
+
+        series.append({
+            'label': label,
+            'value_key': value_key,
+            'color': color,
+        })
+
+    return {
+        'id': chart.id,
+        'workflow_id': chart.workflow_id,
+        'name': chart.nome,
+        'chart_type': chart.chart_type,
+        'label_key': chart.dimension_field,
+        'series': series,
+        'source_type': 'analise_jp',
+        'source_id': chart.categoria,
+        'options': options or {},
+        'created_at': chart.created_at.isoformat() if chart.created_at else None,
+        'updated_at': chart.updated_at.isoformat() if chart.updated_at else None,
+    }
+
+
+def _normalize_color(value: Optional[str]) -> Optional[str]:
+    if not isinstance(value, str):
+        return None
+    color = value.strip()
+    if not color:
+        return None
+    if not color.startswith('#'):
+        return color
+    if len(color) not in {4, 7}:
+        return color
+    return color
+
+
+def _extract_series_payload(raw_series: Any) -> List[Dict[str, str]]:
+    parsed_series: List[Dict[str, str]] = []
+    if not isinstance(raw_series, list):
+        return parsed_series
+
+    for item in raw_series:
+        if not isinstance(item, dict):
+            continue
+        value_key = str(item.get('value_key') or '').strip()
+        label = str(item.get('label') or '').strip()
+        color = _normalize_color(item.get('color'))
+
+        if not value_key:
+            continue
+
+        parsed_series.append({
+            'value_key': value_key,
+            'label': label or value_key,
+            'color': color,
+        })
+    return parsed_series
+
+
+def _validate_chart_payload(payload: Dict[str, Any]) -> Optional[str]:
+    chart_type = str(payload.get('chart_type') or '').strip().lower()
+    if chart_type not in ALLOWED_CHART_TYPES:
+        return 'Tipo de gráfico inválido.'
+
+    name = str(payload.get('name') or '').strip()
+    if not name:
+        return 'Informe um nome para o gráfico.'
+
+    label_key = str(payload.get('label_key') or '').strip()
+    if not label_key:
+        return 'Selecione a coluna de rótulos.'
+
+    series = _extract_series_payload(payload.get('series'))
+    if not series:
+        return 'Adicione ao menos uma série.'
+
+    if chart_type == 'pie' and len(series) > 1:
+        return 'Gráficos de pizza suportam apenas uma série.'
+
+    return None
 
 
 
@@ -381,3 +544,312 @@ def obter_dados_comparativo(workflow_id):
         'dados': arquivo.dados_extraidos,
         'arquivo': _serialize_arquivo_metadata(arquivo)
     })
+
+
+def _build_series_payload(series: List[Dict[str, str]]) -> Dict[str, Any]:
+    indicators: List[Dict[str, str]] = []
+    colors: List[Optional[str]] = []
+    for serie in series:
+        indicators.append({
+            'value_key': serie['value_key'],
+            'label': serie['label'],
+        })
+        colors.append(serie.get('color'))
+    options = {
+        'series_colors': {
+            serie['value_key']: serie.get('color')
+            for serie in series
+            if serie.get('color')
+        }
+    }
+    return {
+        'indicators': indicators,
+        'colors': colors,
+        'options': options,
+    }
+
+
+def _apply_chart_common_options(options: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, Any]:
+    final_options = dict(options)
+    orientation = payload.get('orientation')
+    if orientation == 'horizontal':
+        final_options['orientation'] = 'horizontal'
+    if payload.get('stacked'):
+        final_options['stacked'] = True
+    if payload.get('fill_mode'):
+        final_options['fill_mode'] = payload.get('fill_mode')
+    tension = payload.get('tension')
+    if isinstance(tension, (int, float)):
+        final_options['tension'] = float(tension)
+    return final_options
+
+
+def _infer_balancete_dataset(processed_data: Dict[str, Any]) -> Dict[str, Any]:
+    indicadores = []
+    if isinstance(processed_data, dict):
+        indicadores = processed_data.get('indicadores') or []
+
+    records: List[Dict[str, Any]] = []
+    for indicador in indicadores:
+        if isinstance(indicador, dict):
+            records.append(indicador)
+
+    label_fields = []
+    if records:
+        example = records[0]
+        label_fields = [key for key in example.keys() if key.startswith('indicador') or key.endswith('nome')]
+        if not label_fields and 'indicador' in example:
+            label_fields.append('indicador')
+        if not label_fields:
+            label_fields = [next(iter(example.keys()))]
+
+    numeric_fields: List[Dict[str, str]] = []
+    if records:
+        candidate_keys = set(records[0].keys())
+        for record in records[1:10]:
+            candidate_keys.update(record.keys())
+
+        for key in candidate_keys:
+            is_numeric = False
+            for record in records:
+                value = record.get(key)
+                if value in (None, ''):
+                    continue
+                try:
+                    float(value)
+                    is_numeric = True
+                    break
+                except (TypeError, ValueError):
+                    is_numeric = False
+                    break
+
+            if is_numeric:
+                numeric_fields.append({'key': key, 'label': _slug_to_label(key)})
+
+    return {
+        'records': records,
+        'label_fields': label_fields,
+        'value_fields': numeric_fields,
+        'meta': {
+            'periodo_1_label': processed_data.get('periodo_1_label'),
+            'periodo_2_label': processed_data.get('periodo_2_label'),
+        }
+    }
+
+
+@workflow_bp.route('/api/workflows/<int:workflow_id>/dataset', methods=['GET'])
+@login_required
+def get_workflow_dataset(workflow_id: int):
+    workflow = _get_workflow_for_user(workflow_id)
+    if workflow.tipo != 'balancete':
+        return jsonify({'error': 'Workflow não é do tipo balancete.'}), 400
+
+    arquivo, processed_data = _get_processed_data_for_workflow(workflow.id)
+    if not processed_data:
+        return jsonify({'records': [], 'label_fields': [], 'value_fields': [], 'meta': {}, 'arquivo': None})
+
+    dataset = _infer_balancete_dataset(processed_data)
+
+    return jsonify({
+        'records': dataset['records'],
+        'label_fields': dataset['label_fields'],
+        'value_fields': dataset['value_fields'],
+        'meta': dataset['meta'],
+        'arquivo': _serialize_arquivo_metadata(arquivo) if arquivo else None,
+    })
+
+
+@workflow_bp.route('/api/workflows/<int:workflow_id>/charts', methods=['GET'])
+@login_required
+def list_workflow_charts(workflow_id: int):
+    workflow = _get_workflow_for_user(workflow_id)
+
+    if workflow.tipo == 'balancete':
+        charts = (
+            Dashboard.query
+            .filter_by(workflow_id=workflow.id)
+            .order_by(Dashboard.created_at.asc())
+            .all()
+        )
+        serialized = [_serialize_balancete_chart(chart) for chart in charts]
+    else:
+        charts = (
+            AnaliseJPChart.query
+            .filter_by(workflow_id=workflow.id)
+            .order_by(AnaliseJPChart.created_at.asc())
+            .all()
+        )
+        serialized = [_serialize_analise_chart(chart) for chart in charts]
+
+    return jsonify({'charts': serialized})
+
+
+@workflow_bp.route('/api/workflows/<int:workflow_id>/charts', methods=['POST'])
+@login_required
+def create_workflow_chart(workflow_id: int):
+    workflow = _get_workflow_for_user(workflow_id)
+    payload = request.get_json() or {}
+
+    error = _validate_chart_payload(payload)
+    if error:
+        return jsonify({'error': error}), 400
+
+    series = _extract_series_payload(payload.get('series'))
+    common_options = _build_series_payload(series)
+    options = _apply_chart_common_options(common_options['options'], payload)
+
+    if workflow.tipo == 'balancete':
+        chart = Dashboard(
+            workflow_id=workflow.id,
+            nome=payload.get('name', 'Gráfico'),
+            chart_type=payload.get('chart_type'),
+            metric=payload.get('label_key'),
+            indicators=common_options['indicators'],
+            colors=common_options['colors'],
+            options={
+                **options,
+                'source_type': 'balancete',
+                'source_id': payload.get('source_id', 'latest'),
+            },
+        )
+    else:
+        categoria = str(payload.get('source_id') or '').strip()
+        try:
+            _validate_category(categoria)
+        except ValueError as exc:
+            return jsonify({'error': str(exc)}), 400
+
+        chart = AnaliseJPChart(
+            workflow_id=workflow.id,
+            categoria=categoria,
+            nome=payload.get('name', 'Gráfico'),
+            chart_type=payload.get('chart_type'),
+            dimension_field=payload.get('label_key'),
+            value_fields=common_options['indicators'],
+            options={
+                **options,
+                'source_type': 'analise_jp',
+            },
+        )
+
+    db.session.add(chart)
+    db.session.commit()
+
+    serialized = (
+        _serialize_balancete_chart(chart)
+        if workflow.tipo == 'balancete'
+        else _serialize_analise_chart(chart)
+    )
+
+    return jsonify({'message': 'Gráfico criado com sucesso.', 'chart': serialized}), 201
+
+
+def _get_chart_for_workflow(workflow: Workflow, chart_id: int):
+    if workflow.tipo == 'balancete':
+        return Dashboard.query.filter_by(id=chart_id, workflow_id=workflow.id).first_or_404()
+    return AnaliseJPChart.query.filter_by(id=chart_id, workflow_id=workflow.id).first_or_404()
+
+
+@workflow_bp.route('/api/workflows/<int:workflow_id>/charts/<int:chart_id>', methods=['PUT'])
+@login_required
+def update_workflow_chart(workflow_id: int, chart_id: int):
+    workflow = _get_workflow_for_user(workflow_id)
+    chart = _get_chart_for_workflow(workflow, chart_id)
+    payload = request.get_json() or {}
+
+    error = _validate_chart_payload(payload)
+    if error:
+        return jsonify({'error': error}), 400
+
+    series = _extract_series_payload(payload.get('series'))
+    common_options = _build_series_payload(series)
+    options = _apply_chart_common_options(common_options['options'], payload)
+
+    chart.nome = payload.get('name', chart.nome)
+    chart.chart_type = payload.get('chart_type', chart.chart_type)
+
+    if workflow.tipo == 'balancete':
+        chart.metric = payload.get('label_key', chart.metric)
+        chart.indicators = common_options['indicators']
+        chart.colors = common_options['colors']
+        merged_options = {
+            **options,
+            'source_type': 'balancete',
+            'source_id': payload.get('source_id', 'latest'),
+        }
+        chart.options = merged_options
+    else:
+        categoria = str(payload.get('source_id') or chart.categoria).strip()
+        try:
+            _validate_category(categoria)
+        except ValueError as exc:
+            return jsonify({'error': str(exc)}), 400
+
+        chart.categoria = categoria
+        chart.dimension_field = payload.get('label_key', chart.dimension_field)
+        chart.value_fields = common_options['indicators']
+        chart.options = {
+            **options,
+            'source_type': 'analise_jp',
+        }
+
+    db.session.commit()
+
+    serialized = (
+        _serialize_balancete_chart(chart)
+        if workflow.tipo == 'balancete'
+        else _serialize_analise_chart(chart)
+    )
+
+    return jsonify({'message': 'Gráfico atualizado com sucesso.', 'chart': serialized})
+
+
+@workflow_bp.route('/api/workflows/<int:workflow_id>/charts/<int:chart_id>', methods=['DELETE'])
+@login_required
+def delete_workflow_chart(workflow_id: int, chart_id: int):
+    workflow = _get_workflow_for_user(workflow_id)
+    chart = _get_chart_for_workflow(workflow, chart_id)
+
+    db.session.delete(chart)
+    db.session.commit()
+
+    return jsonify({'message': 'Gráfico removido com sucesso.'})
+
+
+@workflow_bp.route('/api/workflows/<int:workflow_id>/charts/<int:chart_id>/duplicate', methods=['POST'])
+@login_required
+def duplicate_workflow_chart(workflow_id: int, chart_id: int):
+    workflow = _get_workflow_for_user(workflow_id)
+    chart = _get_chart_for_workflow(workflow, chart_id)
+
+    if workflow.tipo == 'balancete':
+        duplicated = Dashboard(
+            workflow_id=workflow.id,
+            nome=f"{chart.nome} (cópia)",
+            chart_type=chart.chart_type,
+            metric=chart.metric,
+            indicators=list(chart.indicators or []),
+            colors=list(chart.colors or []),
+            options=dict(chart.options or {}),
+        )
+    else:
+        duplicated = AnaliseJPChart(
+            workflow_id=workflow.id,
+            categoria=chart.categoria,
+            nome=f"{chart.nome} (cópia)",
+            chart_type=chart.chart_type,
+            dimension_field=chart.dimension_field,
+            value_fields=list(chart.value_fields or []),
+            options=dict(chart.options or {}),
+        )
+
+    db.session.add(duplicated)
+    db.session.commit()
+
+    serialized = (
+        _serialize_balancete_chart(duplicated)
+        if workflow.tipo == 'balancete'
+        else _serialize_analise_chart(duplicated)
+    )
+
+    return jsonify({'message': 'Gráfico duplicado com sucesso.', 'chart': serialized}), 201
