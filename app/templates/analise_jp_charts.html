@@ -44,9 +44,39 @@
                 transform: translateY(0);
             }
         }
+
+        .modal-enter {
+            animation: modalEnter 0.28s ease forwards;
+        }
+
+        .modal-leave {
+            animation: modalLeave 0.18s ease forwards;
+        }
+
+        @keyframes modalEnter {
+            0% {
+                opacity: 0;
+                transform: translateY(20px) scale(0.96);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        @keyframes modalLeave {
+            0% {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+            100% {
+                opacity: 0;
+                transform: translateY(20px) scale(0.96);
+            }
+        }
     </style>
 </head>
-<body class="{{ theme.bg }} {{ theme.text }} font-sans h-screen overflow-hidden">
+<body class="{{ theme.bg }} {{ theme.text }} font-sans min-h-screen overflow-hidden">
     <div class="flex h-full">
         {% include 'partials/sidebar.html' %}
 
@@ -70,14 +100,14 @@
                                 </span>
                             </div>
                             <p class="text-white/70 max-w-3xl leading-relaxed">
-                                Construa e acompanhe visualizações personalizadas para os dados deste workflow sempre que precisar.
+                                Crie visualizações personalizadas combinando categorias, métricas e cores. Os gráficos se adaptam ao tema ativo e permanecem salvos no workflow.
                             </p>
                             <p class="text-xs text-white/40 uppercase tracking-widest">
                                 Criado em {{ workflow.data_criacao.strftime('%d/%m/%Y %H:%M') }}
                             </p>
                         </div>
 
-                        <div class="flex flex-col sm:flex-row gap-4">
+                        <div class="flex gap-4 flex-col sm:flex-row">
                             <button id="openCreateChartBtn" class="{{ theme.buttons.primary }} px-6 py-2.5 rounded-full text-sm font-semibold tracking-wide uppercase shadow-lg shadow-emerald-500/20 transition-transform duration-300 hover:-translate-y-0.5">
                                 Criar gráfico
                             </button>
@@ -88,57 +118,163 @@
                     </div>
                 </header>
 
-                <section class="glass-panel {{ theme.modal }} border border-white/5 rounded-3xl p-8 md:p-10 shadow-xl shadow-emerald-500/10 space-y-6 fade-in">
+                <section class="glass-panel {{ theme.modal }} border border-white/5 rounded-3xl p-8 md:p-10 shadow-xl shadow-emerald-500/10 space-y-8 fade-in">
                     <div class="space-y-2">
                         <h2 class="text-2xl font-semibold tracking-tight">Galeria de gráficos</h2>
-                        <p class="text-sm text-white/60">Crie gráficos personalizados para acompanhar os indicadores mais relevantes do seu processo.</p>
+                        <p class="text-sm text-white/60">Combine dados das categorias importadas e acompanhe indicadores-chave em dashboards fluidos.</p>
                     </div>
 
-                    <div class="border border-dashed border-white/10 rounded-2xl p-8 space-y-6">
-                        <div class="text-center space-y-3">
-                            <div class="w-12 h-12 mx-auto rounded-full border border-white/15 flex items-center justify-center text-white/50">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 12h18m-9-9v18" />
-                                </svg>
+                    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                        {% for categoria in categories_meta %}
+                            <div class="glass-panel border border-white/10 rounded-2xl p-5 space-y-3">
+                                <div class="flex items-center justify-between">
+                                    <h4 class="text-base font-semibold text-white/80">{{ categoria.label }}</h4>
+                                    {% if categoria.has_data %}
+                                        <span class="px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide bg-emerald-500/20 text-emerald-200">Atualizado</span>
+                                    {% else %}
+                                        <span class="px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide bg-white/10 text-white/60">Sem dados</span>
+                                    {% endif %}
+                                </div>
+                                {% if categoria.latest_upload %}
+                                    {% set upload = categoria.latest_upload %}
+                                    <p class="text-xs text-white/50">Último upload em {% if upload.created_at %}{{ upload.created_at.split('T')[0].split('-')[2] }}/{{ upload.created_at.split('T')[0].split('-')[1] }}/{{ upload.created_at.split('T')[0].split('-')[0] }}{% else %}--/--/----{% endif %}</p>
+                                    <p class="text-sm text-white/70 truncate" title="{{ upload.nome_arquivo }}">{{ upload.nome_arquivo }}</p>
+                                {% else %}
+                                    <p class="text-sm text-white/60">Aguardando dados para esta categoria.</p>
+                                {% endif %}
+                                <p class="text-xs text-white/40">Registros visíveis: {{ categoria.record_count }}{% if categoria.total_records > categoria.record_count %} <span class="text-amber-300">(+{{ categoria.total_records - categoria.record_count }} ocultos)</span>{% endif %}</p>
                             </div>
-                            <h3 class="text-lg font-semibold text-white/80">Galeria vazia</h3>
-                            <p class="text-sm text-white/60 max-w-2xl mx-auto">
-                                Nenhum gráfico foi criado até o momento. Utilize o botão <strong>Criar gráfico</strong> para adicionar a primeira visualização.
-                            </p>
+                        {% endfor %}
+                    </div>
+
+                    <div class="border border-dashed border-white/10 rounded-2xl p-10 text-center space-y-4">
+                        <div class="w-12 h-12 mx-auto rounded-full border border-white/15 flex items-center justify-center text-white/50">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 12h18m-9-9v18" />
+                            </svg>
                         </div>
-
-                        {% if categories_meta %}
-                            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                                {% for grafico in categories_meta %}
-                                    <div class="glass-panel border border-white/10 rounded-2xl p-5 space-y-3">
-                                        <div class="flex items-center justify-between">
-                                            <h4 class="text-base font-semibold text-white/80">{{ grafico.label }}</h4>
-                                            {% if grafico.has_data %}
-                                                <span class="px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide bg-emerald-500/20 text-emerald-200">Atualizado</span>
-                                            {% else %}
-                                                <span class="px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide bg-white/10 text-white/60">Sem dados</span>
-                                            {% endif %}
-                                        </div>
-                                        {% if grafico.latest_upload %}
-                                            {% set created_at = grafico.latest_upload.created_at %}
-                                            {% if created_at %}
-                                                {% set data_parts = created_at.split('T')[0].split('-') %}
-                                                <p class="text-xs text-white/50">Última atualização em {{ data_parts[2] }}/{{ data_parts[1] }}/{{ data_parts[0] }}</p>
-                                            {% else %}
-                                                <p class="text-xs text-white/50">Última atualização registrada.</p>
-                                            {% endif %}
-                                            <p class="text-sm text-white/70 truncate" title="{{ grafico.latest_upload.nome_arquivo }}">{{ grafico.latest_upload.nome_arquivo }}</p>
-                                        {% else %}
-                                            <p class="text-sm text-white/60">Adicione dados para começar a visualizar esta categoria.</p>
-                                        {% endif %}
-                                    </div>
-                                {% endfor %}
-                            </div>
-                        {% endif %}
+                        <h3 class="text-lg font-semibold text-white/80">Nenhum gráfico configurado</h3>
+                        <p class="text-sm text-white/60 max-w-2xl mx-auto">
+                            Clique em <strong>Criar gráfico</strong> para iniciar o assistente e selecionar as categorias e colunas desejadas para a visualização.
+                        </p>
                     </div>
+
+                    <div id="chartFeedback" class="hidden text-sm"></div>
+                    <div id="chartsGrid" class="hidden grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"></div>
                 </section>
             </div>
         </main>
     </div>
+
+    <div id="chartModal" class="fixed inset-0 z-[120] hidden">
+        <div data-modal-backdrop class="absolute inset-0 bg-black/70 opacity-0 transition-opacity"></div>
+        <div data-modal-panel class="relative max-w-5xl mx-auto mt-16 mb-10 bg-slate-900/95 border border-white/10 rounded-3xl shadow-2xl shadow-emerald-500/20 overflow-hidden scale-95 opacity-0">
+            <div class="flex items-center justify-between px-8 py-6 border-b border-white/10">
+                <div>
+                    <h3 id="chartModalTitle" class="text-2xl font-semibold">Criar gráfico</h3>
+                    <p class="text-sm text-white/60">Siga as etapas para montar o gráfico ideal para o seu painel.</p>
+                </div>
+                <button id="closeChartModal" class="w-10 h-10 rounded-full border border-white/10 hover:border-white/30 flex items-center justify-center transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <div class="px-8 py-6 space-y-6">
+                <div class="flex items-center gap-2 text-xs uppercase tracking-[0.3em] text-white/40">
+                    <span data-step-indicator="1" class="px-3 py-1 rounded-full border border-white/10">Tipo</span>
+                    <span class="text-white/20">•</span>
+                    <span data-step-indicator="2" class="px-3 py-1 rounded-full border border-white/10">Dados</span>
+                    <span class="text-white/20">•</span>
+                    <span data-step-indicator="3" class="px-3 py-1 rounded-full border border-white/10">Pré-visualização</span>
+                </div>
+
+                <div class="space-y-8">
+                    <section data-chart-step="1" class="space-y-6">
+                        <div>
+                            <h4 class="text-lg font-semibold text-white">Escolha o tipo de gráfico</h4>
+                            <p class="text-sm text-white/60">Selecione a visualização que melhor representa os dados escolhidos.</p>
+                        </div>
+                        <div id="chartTypeOptions" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+                    </section>
+
+                    <section data-chart-step="2" class="hidden space-y-6">
+                        <div class="space-y-1">
+                            <h4 class="text-lg font-semibold text-white">Defina a origem dos dados</h4>
+                            <p class="text-sm text-white/60">Escolha a categoria, a coluna de rótulos e as séries que compõem o gráfico.</p>
+                        </div>
+
+                        <div id="analiseCategoryWrapper" class="space-y-2">
+                            <label for="chartCategory" class="text-sm font-medium text-white/70">Categoria</label>
+                            <select id="chartCategory" class="w-full rounded-2xl bg-white/5 border border-white/10 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"></select>
+                            <p id="chartCategoryHint" class="text-xs text-white/50"></p>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="space-y-2">
+                                <label for="chartLabelField" class="text-sm font-medium text-white/70">Coluna de rótulos</label>
+                                <select id="chartLabelField" class="w-full rounded-2xl bg-white/5 border border-white/10 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"></select>
+                            </div>
+                            <div class="space-y-2">
+                                <label for="chartNameInput" class="text-sm font-medium text-white/70">Nome do gráfico</label>
+                                <input id="chartNameInput" type="text" class="w-full rounded-2xl bg-white/5 border border-white/10 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" placeholder="Ex: Evolução por categoria" />
+                            </div>
+                        </div>
+
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between">
+                                <h5 class="text-sm font-semibold text-white/80 uppercase tracking-widest">Séries</h5>
+                                <button id="addSeriesBtn" class="text-xs uppercase tracking-widest px-3 py-1.5 rounded-full border border-white/10 hover:border-emerald-400 hover:text-emerald-200 transition-colors">Adicionar série</button>
+                            </div>
+                            <div id="seriesContainer" class="space-y-3"></div>
+                        </div>
+
+                        <div id="chartAdvancedOptions" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+                    </section>
+
+                    <section data-chart-step="3" class="hidden space-y-6">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h4 class="text-lg font-semibold text-white">Pré-visualização</h4>
+                                <p class="text-sm text-white/60">Revise o resultado e ajuste as séries caso necessário antes de salvar.</p>
+                            </div>
+                            <button id="editDataStep" class="text-xs uppercase tracking-widest px-4 py-2 rounded-full border border-white/10 hover:border-emerald-400 hover:text-emerald-200 transition-colors">Voltar aos dados</button>
+                        </div>
+                        <div class="rounded-3xl bg-white/5 border border-white/10 p-6">
+                            <canvas id="chartPreviewCanvas" height="320"></canvas>
+                        </div>
+                        <div id="previewMetadata" class="text-xs text-white/50"></div>
+                    </section>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-between px-8 py-6 border-t border-white/10 bg-slate-900/60">
+                <div id="chartModalErrors" class="text-sm text-rose-300 hidden"></div>
+                <div class="flex items-center gap-3">
+                    <button id="chartPrevStep" class="hidden px-5 py-2 rounded-full border border-white/10 text-sm uppercase tracking-widest hover:border-white/30 transition-colors">Voltar</button>
+                    <button id="chartNextStep" class="px-6 py-2 rounded-full {{ theme.buttons.primary }} text-sm uppercase tracking-widest shadow-lg shadow-emerald-500/30">Avançar</button>
+                    <button id="chartSaveBtn" class="hidden px-6 py-2 rounded-full {{ theme.buttons.primary }} text-sm uppercase tracking-widest shadow-lg shadow-emerald-500/30">Salvar gráfico</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js" integrity="sha384-vuWiRiwXQDq6rqcDYPWfbv0x2s9InBezVPSv+6sg6grkQHIiph0jGlpIvUbc6FFM" crossorigin="anonymous"></script>
+    <script>
+        window.__CHARTS_CONTEXT__ = {
+            workflowId: {{ workflow.id }},
+            workflowType: {{ workflow.tipo|tojson }},
+            theme: {{ theme|tojson }},
+            chartPalette: {{ theme.chart_palette|tojson }},
+            endpoints: {
+                charts: {{ url_for('workflow.list_workflow_charts', workflow_id=workflow.id)|tojson }},
+                dataset: null,
+                analiseDataset: {{ url_for('analise_jp.obter_dataset_categoria', workflow_id=workflow.id, categoria='__categoria__')|tojson }},
+            },
+            categoriesMeta: {{ categories_meta|tojson }},
+        };
+    </script>
+    <script src="{{ url_for('static', filename='js/workflow_charts.js') }}" defer></script>
 </body>
 </html>
