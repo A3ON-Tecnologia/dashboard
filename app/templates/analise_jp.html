@@ -355,6 +355,47 @@
             return ordered;
         }
 
+        function normaliseColumnName(column) {
+            if (column === null || column === undefined) {
+                return '';
+            }
+
+            try {
+                return String(column)
+                    .normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '')
+                    .toLowerCase();
+            } catch (error) {
+                return String(column).toLowerCase();
+            }
+        }
+
+        function reorderColumns(columns) {
+            if (!Array.isArray(columns) || columns.length === 0) {
+                return [];
+            }
+
+            const entries = columns.map((column, index) => ({
+                column,
+                index,
+                normalised: normaliseColumnName(column)
+            }));
+
+            const descriptionEntry = entries.find(entry => entry.normalised.includes('descricao'));
+            if (!descriptionEntry) {
+                return [...columns];
+            }
+
+            const ordered = [descriptionEntry.column];
+            entries.forEach(entry => {
+                if (entry.index !== descriptionEntry.index) {
+                    ordered.push(entry.column);
+                }
+            });
+
+            return ordered;
+        }
+
         function slugToLabel(slug) {
             return slug
                 .split('_')
@@ -513,6 +554,9 @@
             const columns = reorderColumns(
                 Object.keys(records[0]).filter(column => !column.startsWith('__'))
             );
+
+            tableHead.innerHTML = '';
+            tableBody.innerHTML = '';
 
             const headerRow = document.createElement('tr');
             columns.forEach(column => {
